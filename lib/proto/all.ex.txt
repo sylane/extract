@@ -1,0 +1,186 @@
+defmodule MyExtractTypes do
+
+  use Extract
+
+  @rx_user_name ~r"^[a-zA-Z][a-zA-Z0-9.]*[a-zA-Z0-9]$"
+  @rx_domain_id ~r"^[a-zA-Z][a-zA-Z0-9-]*[a-zA-Z0-9](?:\.[a-zA-Z]+)?$"
+  @rx_unique_id ~r"^[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]$"
+  @rx_spatch_id ~r"^([a-zA-Z][a-zA-Z0-9-]*[a-zA-Z0-9](?:\.[a-zA-Z]+)?)/([a-zA-Z][a-zA-Z0-9.]*[a-zA-Z0-9])/([a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])$"
+
+
+  extract :spatch_id do
+    "spatch ientifier" :: tuple do
+        string(regex: @rx_domain_id)
+        string(regex: @rx_user_id)
+        string(regex: @rx_unique_id)
+      end
+  end
+
+  extract :user_id do
+    "user ientifier" :: tuple do
+        string(regex: @rx_user_id)
+        string(regex: @rx_domain_id)
+      end
+  end
+
+  condence (:string -> :spatch_id) do
+    Transform.regex @rx_spatch_id, capture: :all_but_first, as: :tuple
+  end
+
+  condence (:spatch_id -> :string) do
+    Transform.tuple_to_list |> Transform.join "/"
+  end
+
+  condence (:spatch_id <> :tuple), do: Transform.identity
+
+  condence (:string -> :user_id) do
+    Transform.regex @rx_user_id, capture: :all_but_first, as: :tuple
+  end
+
+  condence (:user_id -> :string) do
+    Transform.tuple_to_list |> Transform.join "@"
+  end
+
+  condence (:user_id <> :tuple), do: Transform.identity
+
+end
+
+
+defmodule Request do
+
+  use Extract
+  use MyExtractTypes
+
+  defstruct [:id, :command, data: nil]
+
+  @commands [:ping, :register, :login, :push]
+  @lookup   %{ping: Request.Ping,
+              register: Request.Register,
+              login: Request.Login,
+              push: Request.Push}
+
+  @commands_str ["ping", "register", "login", "push"]
+  @lookup_str   %{"ping" => Request.Ping,
+                  "register" => Request.Register,
+                  "login" => Request.Login,
+                  "push" => Request.Push}
+
+  extract :struct do
+    "request" :: struct Request do
+      "identifier" ::  :id      |> string
+      "command"    ::  :command |> atom allowed: @commands
+      "data"       ::  :data    |> delegate ^"command", @lookup
+    end
+  end
+
+  extract :term do
+    "request" :: map stash: [rid: :id, command: :comand] do
+      "type"       ::  :type    |> string "request"
+      "identifier" ::  :rid     |> string
+      "command"    ::  :command |> atom allowed: @commands
+      "data"       ::  :data    |> delegate ^"command", @lookup
+    end
+  end
+
+  extract :poison do
+    "request" :: map stash: [rid: :id, command: :comand] do
+      "type"       ::  "type"    |> string "request"
+      "identifier" ::  "id"      |> string
+      "command"    ::  "command" |> string allowed: @commands_str
+      "data"       ::  "data"    |> delegate ^"command", @lookup_str
+    end
+  end
+
+end
+
+
+defmodule Request.Push do
+
+  use Extract
+  use MyExtractTypes
+
+  extract [:struct, :term, :poison], do: delegate Commit
+end
+
+
+defmodule Commit do
+
+  use Extract
+  use MyExtractTypes
+
+  defstruct [:id, :author, msg: nil, docs: []]
+
+  extract :struct do
+    "commit" :: struct Commit do
+      "identifier" ::  :id      |>  spatch_id
+      "author"     ::  :author  |>  user_id
+      "message"    ::  :msg     |>  string optional: true
+      "document"   ::  :docs    |>  list delegate(Changeset)
+    end
+  end
+
+  extract :term do
+    "commit" :: map do
+      "identifier" ::  :cid        |>  spatch_id
+      "author"     ::  :author     |>  user_id
+      "message"    ::  :message    |>  string optional: true
+      "document"   ::  :documents  |>  list delegate(Changeset)
+    end
+  end
+
+  extract :poison do
+    "commit" :: map do
+      "identifier" ::  "cid"       |>  string
+      "author"     ::  "author"    |>  string
+      "message"    ::  "message"   |>  string optional: true
+      "document"   ::  "document"  |>  list delegate(Changeset)
+    end
+  end
+
+end
+
+
+defmodule Changeset do
+
+  use Extract
+  use MyExtractTypes
+
+  defstruct [:id, :ver, ctx: nil, acl: nil, data: nil, ops: nil]
+
+  extract :struct do
+    "changeset" :: struct Changeset do
+      "document identifier" ::
+                       :id   |>  spatch_id
+      "version"    ::  :ver  |>  integer min: 1, max: 9007199254740991
+      "context"    ::  :ctx  |>  undefined optional: true
+      "acl"        ::  :acl  |>  list(user_id(), optional: true)
+      "data"       ::  :data |>  any optional: true
+      "operations" ::  :ops  |>  undefined optional: true
+    end
+  end
+
+  extract :term do
+    "changeset" :: map do
+      "document identifier" ::
+                       :did       |>  spatch_id
+      "version"    ::  :version   |>  integer min: 1, max: 9007199254740991
+      "context"    ::  :context   |>  undefined optional: true
+      "acl"        ::  :acl       |>  list optional: true, do: user_id
+      "data"       ::  :data      |>  any optional: true
+      "operations" ::  :oprations |>  undefined optional: true
+    end
+  end
+
+  extract :poison do
+    "changeset" :: map do
+      "document identifier" ::
+                       "did"       |>  string
+      "version"    ::  "version"   |>  integer min: 1, max: 9007199254740991
+      "context"    ::  "context"   |>  undefined optional: true
+      "acl"        ::  "acl"       |>  list optional: true do: string()
+      "data"       ::  "data"      |>  any optional: true
+      "operations" ::  "oprations" |>  undefined optional: true
+    end
+  end
+
+end

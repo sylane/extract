@@ -1,134 +1,157 @@
 defmodule Extract.Meta.Context do
 
-  require Extract.Meta.Debug
+  require Extract.Meta.Error
 
   alias Extract.Meta.Context
-  alias Extract.Meta.Debug
+  alias Extract.Meta.Error
 
 
-  defstruct [env: nil,
-             caller: nil,
+  defstruct [debug: nil,
+             type_info: [],
              missing: nil,
              undefined: nil,
-             need_rescue: false]
+             encapsulated: false,
+             may_raise: false,
+             may_be_undefined: true,
+             may_be_missing: false]
 
 
-  def start(value, kv \\ []) do
+  def new(kv \\ []) do
     env = Keyword.get(kv, :env, nil)
     caller = Keyword.get(kv, :caller, nil)
-    undefined = Keyword.get(kv, :undefined, nil)
-    missing = Keyword.get(kv, :undefined, nil)
-    context = %Context{env: cleanup_env(env), caller: cleanup_env(caller),
-                       undefined: undefined, missing: missing}
-    case value do
-      ^undefined -> {:undefined, context}
-      other when is_atom(value) or is_binary(value) or is_number(value) ->
-        {{:value, other}, context}
-      other ->
-        ast = quote do
-          case unquote(other) do
-            unquote(undefined) -> :undefined
-            other -> {:value, other}
-          end
-        end
-        {ast, context}
+    %Context{debug: debug_context(env, caller)}
+  end
+
+
+  def debug(%Context{debug: result}), do: result
+
+  def push_type_info(%Context{type_info: type_info} = ctx, tag, desc)
+   when is_atom(tag) and is_binary(desc) do
+    %Context{ctx | type_info: [{tag, desc} | type_info]}
+  end
+
+
+  def properties(%Context{} = ctx) do
+    [type_info: ctx.type_info]
+  end
+
+
+  def merge(%Context{} = ctx, ctxs) when is_list(ctxs) do
+    %Context{ctx | encapsulated: merge_same(ctx, ctxs, :encapsulated),
+                   may_raise: merge_any(ctx, ctxs, :may_raise),
+                   may_be_undefined: merge_same(ctx, ctxs, :may_be_undefined),
+                   may_be_missing: merge_same(ctx, ctxs, :may_be_missing)}
+  end
+
+
+  def undefined(%Context{} = ctx, value) do
+    %Context{ctx | undefined: value}
+  end
+
+  def undefined(%Context{undefined: result}),  do: result
+
+
+  def missing(%Context{} = ctx, value) do
+    %Context{ctx | missing: value}
+  end
+
+
+  def missing(%Context{missing: result}),  do: result
+
+
+  def encapsulated(%Context{} = ctx, flag \\ true) when is_boolean(flag) do
+    %Context{ctx | encapsulated: flag}
+  end
+
+
+  def encapsulated?(%Context{encapsulated: result}),  do: result
+
+
+  def may_raise(%Context{} = ctx, flag \\ true) when is_boolean(flag) do
+    %Context{ctx | may_raise: true}
+  end
+
+
+  def may_raise?(%Context{may_raise: result}),  do: result
+
+
+  def may_be_undefined(%Context{} = ctx, flag \\ true) when is_boolean(flag) do
+    %Context{ctx | may_be_undefined: true}
+  end
+
+
+  def may_be_undefined?(%Context{may_be_undefined: result}),  do: result
+
+
+  def may_be_missing(%Context{} = ctx, flag \\ true) when is_boolean(flag) do
+    %Context{ctx | may_be_missing: true}
+  end
+
+
+  def may_be_missing?(%Context{may_be_missing: result}),  do: result
+
+
+  defp debug_context(nil, nil), do: "Unknown Macro"
+
+  defp debug_context(env, nil), do: call_from_env(env)
+
+  defp debug_context(nil, caller) do
+    "Unknown Macro used in #{call_from_env caller}"
+  end
+
+  defp debug_context(env, caller) do
+    "#{call_from_env env} used in #{call_from_env caller}"
+  end
+
+
+  defp call_from_env(env) do
+    case {env.context_modules, env.function, env.line} do
+      {[mod | _], {fun, arity}, line} when is_integer(line) and line > 0 ->
+        "#{strip_module mod}.#{fun}/#{arity}:#{line}"
+      {_, {fun, arity}, line} when is_integer(line) and line > 0 ->
+        "#{fun}/#{arity}:#{line}"
+      {[mod | _], {fun, arity}, _} ->
+        "#{strip_module mod}.#{fun}/#{arity}"
+      {_, {fun, arity}, _} ->
+        "#{fun}/#{arity}"
+      {[mod | _], _, _} ->
+        "Unknown #{mod} function"
+      {_, _, _} ->
+        "Unknown function"
     end
   end
 
 
-  def terminate!({:missing, %Context{missing: missing}}) do
-    quote do: unquote(missing)
+  defp strip_module(mod) when is_atom(mod) do
+    strip_module(Atom.to_string(mod))
   end
 
-  def terminate!({:undefined, %Context{undefined: undefined}}) do
-    quote do: unquote(undefined)
+  defp strip_module("Elixir." <> mod), do: mod
+
+  defp strip_module(mod) do
+    IO.puts "????? #{inspect mod}"
+    mod
   end
 
-  def terminate!({{:value, value}, %Context{}})
-   when is_atom(value) or is_binary(value) or is_number(value) do
-    quote do: unquote(value)
+
+  defp merge_any(_ctx, contexts, field) do
+    Enum.any?(contexts, fn %Context{} = c -> Map.get(c, field) end)
   end
 
-  def terminate!({ast, %Context{undefined: undefined, missing: missing}}) do
-    quote do
-      case unquote(ast) do
-        :undefined -> unquote(undefined)
-        :missing -> unquote(missing)
-        {:value, value} -> value
+
+  defp merge_same(ctx, contexts, field) do
+    try do
+      map = fn %Context{} = c -> Map.get(c, field) end
+      reduce = fn same, same -> same
+                  _new, _last -> raise :internal_error
       end
+      Enum.reduce(Enum.map(contexts, map), reduce)
+    rescue
+      _ ->
+        Error.comptime ctx,
+          error({:context_merge_error, field},
+            "multiple sub-contexts with different value for '#{field}' flag")
     end
   end
 
-
-  def terminate({:missing, %Context{missing: missing}}) do
-    quote do: {:ok, unquote(missing)}
-  end
-
-  def terminate({:undefined, %Context{undefined: undefined}}) do
-    quote do: {:ok, unquote(undefined)}
-  end
-
-  def terminate({{:value, value}, %Context{}})
-   when is_atom(value) or is_binary(value) or is_number(value) do
-    quote do: {:ok, unquote(value)}
-  end
-
-  def terminate({ast, %Context{need_rescue: false} = context}) do
-    #TODO: may remove the :missing match if not required like for :need_rescue
-    %Context{undefined: undefined, missing: missing} = context
-    quote do
-      case unquote(ast) do
-        :undefined -> {:ok, unquote(undefined)}
-        :missing -> {:ok, unquote(missing)}
-        {:value, value} -> {:ok, value}
-      end
-    end
-  end
-
-  def terminate({ast, %Context{need_rescue: true} = context}) do
-    #TODO: may remove the :missing match if not required like for :need_rescue
-    %Context{undefined: undefined, missing: missing} = context
-    quote do
-      try do
-        case unquote(ast) do
-          :undefined -> {:ok, unquote(undefined)}
-          :missing -> {:ok, unquote(missing)}
-          {:value, value} -> {:ok, value}
-        end
-      rescue
-        e in Extract.Error -> {:error, e.reason}
-      end
-    end
-  end
-
-
-  def debug(param, kv \\ [])
-
-  def debug({ast, %Context{env: env, caller: caller} = context}, kv) do
-    debug_env = Keyword.get(kv, :env, env)
-    debug_caller = Keyword.get(kv, :caller, caller)
-    {Debug.ast(ast, env: debug_env, caller: debug_caller), context}
-  end
-
-  def debug(ast, kv) do
-    debug_env = Keyword.get(kv, :env)
-    debug_caller = Keyword.get(kv, :caller)
-    Debug.ast(ast, env: debug_env, caller: debug_caller)
-  end
-
-
-  def merge(%Context{} = context, children) when is_list(children) do
-    need_rescue = Enum.any?(children, fn %Context{need_rescue: f} -> f end)
-    %Context{context | need_rescue: need_rescue}
-  end
-
-
-  def need_rescue(%Context{} = context) do
-    %Context{context | need_rescue: true}
-  end
-
-
-  defp cleanup_env(env) do
-    %Elixir.Macro.Env{env | functions: nil, macros: nil}
-  end
 end

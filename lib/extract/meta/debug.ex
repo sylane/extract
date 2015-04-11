@@ -6,12 +6,16 @@ defmodule Extract.Meta.Debug do
 
 
   def ast(ast, kv \\ []) do
-    info = macro_info(Keyword.get(kv, :env), Keyword.get(kv, :caller))
+    info = Keyword.get(kv, :info, "Macro")
     headline "=", info, prefix_size: div(@prefix_size, 2)
     headline "-", "Code"
     IO.puts Macro.to_string(ast)
-    headline "-", "AST"
-    :io.format "~p~n", [ast]
+    case Keyword.get(kv, :ast, false) do
+      false -> :ok
+      true ->
+        headline "-", "AST"
+        :io.format "~p~n", [ast]
+    end
     headline "-"
     newline
     ast
@@ -34,27 +38,6 @@ defmodule Extract.Meta.Debug do
 
   def newline do
     IO.puts ""
-  end
-
-
-  defp macro_info(nil, nil), do: "Unknown Macro"
-
-  defp macro_info(env, nil), do: identifier(env)
-
-  defp macro_info(nil, caller) do
-    "Unknown Macro used in #{identifier caller}"
-  end
-
-  defp macro_info(env, caller) do
-    "#{identifier env} used in #{identifier caller}"
-  end
-
-
-  defp identifier(env) do
-    mod = hd(env.context_modules)
-    {fun, arity} = env.function
-    line = env.line
-    "#{mod}.#{fun}/#{arity}:#{line}"
   end
 
 end
