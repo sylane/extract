@@ -65,15 +65,17 @@ defmodule Extract.Pipeline do
       case unquote(format) do
         format when is_atom(format) ->
           case Keyword.fetch(choices, format) do
-            {:ok, result} -> result
+            {:ok, {:branch, result}} -> result
+            {:ok, {:error, {error, stacktrace}}} ->
+              reraise error, stacktrace
             :error ->
               Error.comptime unquote(ctx_var), bad_format(unquote(format))
           end
         format ->
-          sub_ctxs = for {_, {_, c}} <- choices, do: c
+          sub_ctxs = for {_, {:branch, {_, c}}} <- choices, do: c
           ctx = Context.merge(ctx, sub_ctxs)
           ctx = Context.may_raise(ctx)
-          choices_ast = for {f, {ast, _}} <- choices do
+          choices_ast = for {f, {:branch, {ast, _}}} <- choices do
             [choice_ast] = quote location: :keep do
               unquote(f) -> unquote(ast)
             end
@@ -158,7 +160,7 @@ defmodule Extract.Pipeline do
   end
 
   defp build_lookup(ast, ctx, statments) when is_list(statments) do
-    fun = fn
+    extract = fn
       {:->, _, [[k], {:__block__, _, _} = body]} when is_atom(k) ->
         {k, compose(ast, ctx, body)}
       {:->, _, [[k], {f, c, a}]} when is_atom(k) ->
@@ -168,7 +170,17 @@ defmodule Extract.Pipeline do
           error(:bad_branch_statement,
             "invalid branch statment: #{Macro.to_string(any)}"))
     end
-    Enum.map(statments, fun)
+    protect = fn {k, ast} ->
+      ast = quote location: :keep do
+        try do
+          {unquote(k), {:branch, unquote(ast)}}
+        rescue
+          e in Extract.Error ->
+            {unquote(k), {:error, {e, System.stacktrace()}}}
+        end
+      end
+    end
+    Enum.map(Enum.map(statments, extract), protect)
   end
 
 end

@@ -70,8 +70,8 @@ defmodule Extract.Meta.Options do
   defp valid?(:allowed, list) when is_list(list), do: true
   defp valid?(:allowed, map) when is_map(map), do: true
   defp valid?(:default, _any), do: true
-  defp valid?(:max, int) when is_integer(int), do: true
-  defp valid?(:min, int) when is_integer(int), do: true
+  defp valid?(:max, num) when is_integer(num), do: true
+  defp valid?(:min, num) when is_integer(num), do: true
   defp valid?(_other, _any), do: false
 
 

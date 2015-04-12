@@ -8,12 +8,12 @@ defmodule Test do
 
 
   # def test(value, format) do
-  #   Extract.Types.validate(value, format)
+  #   Extract.Types.validate value, format
   # end
 
-  def test(value, format) do
-    Extract.Types.validate(value, format, min: 3, max: 10, optional: true)
-  end
+  # def test(value, format) do
+  #   Extract.Types.validate(value, format, min: 3, max: 10, optional: true)
+  # end
 
   # def test(value, format) do
   #   Extract.Types.validate(value, format, allowed: [3, 4, 5])
@@ -31,9 +31,9 @@ defmodule Test do
   #   Extract.Types.validate(value, format, default: 42)
   # end
 
-  # def test(value) do
-  #   Extract.Types.validate(value, :integer)
-  # end
+  def test(value) do
+    Extract.Types.validate(value, :integer, allowed: @allowed_list, optional: true)
+  end
 
   # def test(value) do
   #   Extract.Types.validate(value, :integer, optional: true)
@@ -56,7 +56,7 @@ defmodule Test do
   # end
 
   # def test() do
-  #   Extract.Types.validate(3, :integer)
+  #   Extract.Types.validate(3, :number)
   # end
 
   # def test() do

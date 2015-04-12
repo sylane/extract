@@ -23,6 +23,13 @@ defmodule Extract.Meta do
   end
 
 
+  def no_body_allowed(ast, ctx, []), do: {ast, ctx}
+
+  def no_body_allowed(_ast, ctx, _) do
+    Error.comptime(ctx, error(:no_body_allowed, "no body allowed"))
+  end
+
+
   def allowed_value(ast, ctx, opts) do
     undefined_value = Context.undefined_value(ctx)
     missing_value = Context.missing_value(ctx)
