@@ -79,7 +79,7 @@ defmodule Extract.Pipeline do
             end
             choice_ast
           end
-          {error, [var]} = Error.runtime(unquote(ctx_var), &bad_format/1)
+          {error, [var]} = Error.runtime(unquote(ctx_var), bad_format/1)
           default_ast = quote location: :keep do
             unquote(var) -> unquote(error)
           end
@@ -157,13 +157,12 @@ defmodule Extract.Pipeline do
     build_lookup(ast, ctx, statments)
   end
 
-  defp build_lookup(ast, ctx, {f, c, a}) do
-    [{f, c, [ast, ctx | a]}]
-  end
-
   defp build_lookup(ast, ctx, statments) when is_list(statments) do
     fun = fn
-      {:->, _, [[k], {f, c, a}]} when is_atom(k) -> {k, {f, c, [ast, ctx | a]}}
+      {:->, _, [[k], {:__block__, _, _} = body]} when is_atom(k) ->
+        {k, compose(ast, ctx, body)}
+      {:->, _, [[k], {f, c, a}]} when is_atom(k) ->
+        {k, {f, c, [ast, ctx | a]}}
       any ->
         Error.comptime(ctx,
           error(:bad_branch_statement,

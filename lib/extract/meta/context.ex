@@ -8,18 +8,21 @@ defmodule Extract.Meta.Context do
 
   defstruct [debug: nil,
              type_info: [],
-             missing: nil,
-             undefined: nil,
+             missing_value: nil,
+             undefined_value: nil,
              encapsulated: false,
              may_raise: false,
              may_be_undefined: true,
-             may_be_missing: false]
+             may_be_missing: false,
+             macro_env: nil,
+             caller_env: nil]
 
 
   def new(kv \\ []) do
     env = Keyword.get(kv, :env, nil)
     caller = Keyword.get(kv, :caller, nil)
-    %Context{debug: debug_context(env, caller)}
+    %Context{debug: debug_context(env, caller),
+             macro_env: env, caller_env: caller}
   end
 
 
@@ -39,24 +42,24 @@ defmodule Extract.Meta.Context do
   def merge(%Context{} = ctx, ctxs) when is_list(ctxs) do
     %Context{ctx | encapsulated: merge_same(ctx, ctxs, :encapsulated),
                    may_raise: merge_any(ctx, ctxs, :may_raise),
-                   may_be_undefined: merge_same(ctx, ctxs, :may_be_undefined),
-                   may_be_missing: merge_same(ctx, ctxs, :may_be_missing)}
+                   may_be_undefined: merge_any(ctx, ctxs, :may_be_undefined),
+                   may_be_missing: merge_any(ctx, ctxs, :may_be_missing)}
   end
 
 
-  def undefined(%Context{} = ctx, value) do
-    %Context{ctx | undefined: value}
+  def undefined_value(%Context{} = ctx, value) do
+    %Context{ctx | undefined_value: value}
   end
 
-  def undefined(%Context{undefined: result}),  do: result
+  def undefined_value(%Context{undefined_value: result}),  do: result
 
 
-  def missing(%Context{} = ctx, value) do
-    %Context{ctx | missing: value}
+  def missing_value(%Context{} = ctx, value) do
+    %Context{ctx | missing_value: value}
   end
 
 
-  def missing(%Context{missing: result}),  do: result
+  def missing_value(%Context{missing_value: result}),  do: result
 
 
   def encapsulated(%Context{} = ctx, flag \\ true) when is_boolean(flag) do
@@ -68,7 +71,7 @@ defmodule Extract.Meta.Context do
 
 
   def may_raise(%Context{} = ctx, flag \\ true) when is_boolean(flag) do
-    %Context{ctx | may_raise: true}
+    %Context{ctx | may_raise: flag}
   end
 
 
@@ -76,7 +79,7 @@ defmodule Extract.Meta.Context do
 
 
   def may_be_undefined(%Context{} = ctx, flag \\ true) when is_boolean(flag) do
-    %Context{ctx | may_be_undefined: true}
+    %Context{ctx | may_be_undefined: flag}
   end
 
 
@@ -84,11 +87,23 @@ defmodule Extract.Meta.Context do
 
 
   def may_be_missing(%Context{} = ctx, flag \\ true) when is_boolean(flag) do
-    %Context{ctx | may_be_missing: true}
+    %Context{ctx | may_be_missing: flag}
   end
 
 
   def may_be_missing?(%Context{may_be_missing: result}),  do: result
+
+
+  def eval_quoted(ctx, ast, bindings \\ [])
+
+  def eval_quoted(%Context{caller_env: nil} = ctx, _ast, _bindings) do
+    Error.comptime(ctx, error({:cannot_eval, :no_valler_env},
+      "cannot eval quoted without the caller environment"))
+  end
+
+  def eval_quoted(%Context{caller_env: env}, ast, bindings) do
+    Code.eval_quoted(ast, bindings, env)
+  end
 
 
   defp debug_context(nil, nil), do: "Unknown Macro"
@@ -128,10 +143,7 @@ defmodule Extract.Meta.Context do
 
   defp strip_module("Elixir." <> mod), do: mod
 
-  defp strip_module(mod) do
-    IO.puts "????? #{inspect mod}"
-    mod
-  end
+  defp strip_module(mod), do: mod
 
 
   defp merge_any(_ctx, contexts, field) do
