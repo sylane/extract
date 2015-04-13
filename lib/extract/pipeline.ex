@@ -1,9 +1,6 @@
 defmodule Extract.Pipeline do
 
-  require Extract.Meta.Error
-
   alias Extract.Meta.Context
-  alias Extract.Meta.Error
 
 
   @default_undefined nil
@@ -38,8 +35,8 @@ defmodule Extract.Pipeline do
 
 
   defmacro condition(ast, ctx, {f, c, a}, body \\ []) do
-    ast_var = Macro.var(:ast, __MODULE__)
-    ctx_var = Macro.var(:ctx, __MODULE__)
+    ast_var = Macro.var(:original_ast, __MODULE__)
+    ctx_var = Macro.var(:original_ctx, __MODULE__)
     do_statments = compose(ast_var, ctx_var, body[:do])
     else_statments = compose(ast_var, ctx_var, body[:else])
     statments = quote location: :keep do
@@ -55,35 +52,41 @@ defmodule Extract.Pipeline do
 
 
   defmacro branch(ast, ctx, format, body \\ []) do
-    ctx_var = Macro.var(:ctx, __MODULE__)
-    ast_var = Macro.var(:ast, __MODULE__)
+    ctx_var = Macro.var(:original_ctx, __MODULE__)
+    ast_var = Macro.var(:original_ast, __MODULE__)
     lookup = build_lookup(ast_var, ctx_var, Keyword.get(body, :do))
+    else_block = protect(compose(ast_var, ctx_var, Keyword.get(body, :else)))
     quote location: :keep do
       unquote(ast_var) = unquote(ast)
       unquote(ctx_var) = unquote(ctx)
       choices = unquote(lookup)
+      else_branch = unquote(else_block)
       case unquote(format) do
         format when is_atom(format) ->
-          case Keyword.fetch(choices, format) do
-            {:ok, {:branch, result}} -> result
-            {:ok, {:error, {error, stacktrace}}} ->
+          case {Keyword.fetch(choices, format), else_branch} do
+            {{:ok, {:ok, result}}, _} -> result
+            {{:ok, {:error, {error, stacktrace}}}, _} ->
               reraise error, stacktrace
-            :error ->
-              Error.comptime unquote(ctx_var), bad_format(unquote(format))
+            {:error, {:ok, result}} -> result
+            {:error, {:error, {error, stacktrace}}} ->
+              reraise error, stacktrace
           end
         format ->
-          sub_ctxs = for {_, {:branch, {_, c}}} <- choices, do: c
-          ctx = Context.merge(ctx, sub_ctxs)
-          ctx = Context.may_raise(ctx)
-          choices_ast = for {f, {:branch, {ast, _}}} <- choices do
+          # FIXME: what it a :else block raises a compile-time exception ?
+          {:ok, {else_ast, else_ctx}} = else_branch
+          sub_ctxs = for {_, {:ok, {_, c}}} <- choices, do: c
+          ctx = Context.merge(unquote(ctx_var), [else_ctx] ++ sub_ctxs)
+          for {f, {:error, {e, s}}} <- choices do
+            IO.puts "EEEEE #{inspect e} #{inspect s}"
+          end
+          choices_ast = for {f, {:ok, {ast, _}}} <- choices do
             [choice_ast] = quote location: :keep do
               unquote(f) -> unquote(ast)
             end
             choice_ast
           end
-          {error, [var]} = Error.runtime(unquote(ctx_var), bad_format/1)
           default_ast = quote location: :keep do
-            unquote(var) -> unquote(error)
+            _other -> unquote(else_ast)
           end
           all_choices_ast = choices_ast ++ default_ast
           ast = quote location: :keep do
@@ -137,15 +140,19 @@ defmodule Extract.Pipeline do
   end
 
 
-  defp compose_statments([{f, c, a}], ast, ctx, acc) do
-    statment = {f, c, [ast, ctx | a]}
+  defp compose_statments([{f, c, a}], ast, ctx, acc)
+   when is_list(a) or is_nil(a) do
+    args = if is_list(a), do: a, else: []
+    statment = {f, c, [ast, ctx | args]}
     Enum.reverse(acc, [statment])
   end
 
-  defp compose_statments([{f, c, a} | statments], ast, ctx, acc) do
+  defp compose_statments([{f, c, a} | statments], ast, ctx, acc)
+   when is_list(a) or is_nil(a) do
     ast_var = Macro.var(:ast, __MODULE__)
     ctx_var = Macro.var(:ctx, __MODULE__)
-    statment = {f, c, [ast, ctx | a]}
+    args = if is_list(a), do: a, else: []
+    statment = {f, c, [ast, ctx | args]}
     new_statment = quote location: :keep do
       {unquote(ast_var), unquote(ctx_var)} = unquote(statment)
     end
@@ -166,21 +173,24 @@ defmodule Extract.Pipeline do
       {:->, _, [[k], {f, c, a}]} when is_atom(k) ->
         {k, {f, c, [ast, ctx | a]}}
       any ->
-        Error.comptime(ctx,
-          error(:bad_branch_statement,
-            "invalid branch statment: #{Macro.to_string(any)}"))
+        raise Extract.Error,
+          reason: :bad_branch_statement,
+          message: "invalid branch statment: #{Macro.to_string(any)}"
     end
-    protect = fn {k, ast} ->
-      ast = quote location: :keep do
-        try do
-          {unquote(k), {:branch, unquote(ast)}}
-        rescue
-          e in Extract.Error ->
-            {unquote(k), {:error, {e, System.stacktrace()}}}
-        end
+    keyed_protect = fn {k, ast} -> {k, protect(ast)} end
+    Enum.map(Enum.map(statments, extract), keyed_protect)
+  end
+
+
+  defp protect(ast) do
+    quote location: :keep do
+      try do
+        {:ok, unquote(ast)}
+      rescue
+        e in Extract.Error ->
+          {:error, {e, System.stacktrace()}}
       end
     end
-    Enum.map(Enum.map(statments, extract), protect)
   end
 
 end

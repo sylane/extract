@@ -1,16 +1,16 @@
 defmodule Proto.Request do
 
-  use Extract
-  use Proto.Types
-  use Proto.Request.Push
+  # use Extract
+  # use Proto.Types
+  # use Proto.Request.Push
 
   defstruct [:id, :command, data: nil]
 
-  @commands [:ping, :register, :login, :push]
-  @lookup   %{ping: Request.Ping,
-              register: Request.Register,
-              login: Request.Login,
-              push: Request.Push}
+  # @commands [:ping, :register, :login, :push]
+  # @lookup   %{ping: Request.Ping,
+  #             register: Request.Register,
+  #             login: Request.Login,
+  #             push: Request.Push}
 
   # extract :struct do
   #   "request" :: struct Request do

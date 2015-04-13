@@ -7,6 +7,14 @@ defmodule Test do
   @allowed_map %{3 => :a, 4 => :b, 5 => :c}
 
 
+  # def test(value, from, to) do
+  #   Extract.Types.distill value, from, to
+  # end
+
+  def test(value, from) do
+    Extract.Types.distill value, from, :string
+  end
+
   # def test(value, format) do
   #   Extract.Types.validate value, format
   # end
@@ -31,9 +39,9 @@ defmodule Test do
   #   Extract.Types.validate(value, format, default: 42)
   # end
 
-  def test(value) do
-    Extract.Types.validate(value, :integer, allowed: @allowed_list, optional: true)
-  end
+  # def test(value) do
+  #   Extract.Types.validate(value, :integer, allowed: @allowed_list, optional: true)
+  # end
 
   # def test(value) do
   #   Extract.Types.validate(value, :integer, optional: true)

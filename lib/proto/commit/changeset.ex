@@ -1,7 +1,7 @@
 defmodule Proto.Commit.Changeset do
 
-  use Extract
-  use Proto.Types
+  # use Extract
+  # use Proto.Types
 
   defstruct [:id, :ver, ctx: nil, acl: nil, data: nil, ops: nil]
 

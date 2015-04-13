@@ -1,8 +1,8 @@
 defmodule Proto.Commit do
 
-  use Extract
-  use Proto.Types
-  use Proto.Commit.Changeset
+  # use Extract
+  # use Proto.Types
+  # use Proto.Commit.Changeset
 
   defstruct [:id, :author, msg: nil, docs: []]
 

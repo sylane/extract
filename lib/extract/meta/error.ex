@@ -68,6 +68,23 @@ defmodule Extract.Meta.Error do
   end
 
 
+  def comptime_bad_receipt(from, to, _kv \\ []) do
+    reason = {:bad_receipt, {from, to}}
+    message = "invalid receipt from #{inspect from} to %{inspect to}"
+    raise Extract.Error, reason: reason, message: message
+  end
+
+
+  defmacro runtime_bad_receipt(from, to, _kv \\ []) do
+    quote do
+      raise Extract.Error,
+        reason: {:bad_receipt, {unquote(from), unquote(to)}},
+        message: "invalid receipt from #{inspect unquote(from)} "
+                 <> "to %{inspect unquote(to)}"
+    end
+  end
+
+
   def comptime_undefined_value(kv \\ []) do
     {tag, desc} = type_info(kv)
     reason = {:undefined_value, tag}
@@ -118,8 +135,8 @@ defmodule Extract.Meta.Error do
     message = "#{desc}value not allowed: "
     quote do
       raise Extract.Error,
-      reason: unquote(reason),
-      message: unquote(message) <> inspect(unquote(value))
+        reason: unquote(reason),
+        message: unquote(message) <> inspect(unquote(value))
     end
   end
 
@@ -138,8 +155,8 @@ defmodule Extract.Meta.Error do
     message = "bad #{desc}value: "
     quote do
       raise Extract.Error,
-      reason: unquote(reason),
-      message: unquote(message) <> inspect(unquote(value))
+        reason: unquote(reason),
+        message: unquote(message) <> inspect(unquote(value))
     end
   end
 
@@ -158,8 +175,8 @@ defmodule Extract.Meta.Error do
     message = "#{desc}value bigger than #{max}: "
     quote do
       raise Extract.Error,
-      reason: unquote(reason),
-      message: unquote(message) <> inspect(unquote(value))
+        reason: unquote(reason),
+        message: unquote(message) <> inspect(unquote(value))
     end
   end
 
@@ -178,8 +195,28 @@ defmodule Extract.Meta.Error do
     message = "#{desc}value smaller than #{min}: "
     quote do
       raise Extract.Error,
-      reason: unquote(reason),
-      message: unquote(message) <> inspect(unquote(value))
+        reason: unquote(reason),
+        message: unquote(message) <> inspect(unquote(value))
+    end
+  end
+
+
+  def comptime_conv_error(value, kv \\ []) do
+    {from_tag, to_tag, desc} = conv_info(kv)
+    reason = {:conv_error, {from_tag, to_tag}}
+    message = "error converting value#{desc}: #{inspect value}"
+    raise Extract.Error, reason: reason, message: message
+  end
+
+
+  defmacro runtime_conv_error(value, kv \\ []) do
+    {from_tag, to_tag, desc} = conv_info(kv)
+    reason = {:conv_error, {from_tag, to_tag}}
+    message = "error converting value#{desc}: "
+    quote do
+      raise Extract.Error,
+        reason: unquote(reason),
+        message: unquote(message) <> inspect(unquote(value))
     end
   end
 
@@ -188,7 +225,18 @@ defmodule Extract.Meta.Error do
     case Keyword.fetch(kv, :type_info) do
       :error -> {:unknwon, ""}
       {:ok, []} -> {:unknown, ""}
-      {:ok, [{tag, desc}]} -> {tag, "#{desc} "}
+      {:ok, [{tag, desc} | _]} -> {tag, "#{desc} "}
+    end
+  end
+
+
+  defp conv_info(kv) do
+    case Keyword.fetch(kv, :type_info) do
+      :error -> {:unknwon, :unknwon, ""}
+      {:ok, []} -> {:unknown, :unknwon, ""}
+      {:ok, [{to_tag, to_desc}]} -> {:unknown, to_tag, " to #{to_desc}"}
+      {:ok, [{to_tag, to_desc}, {from_tag, from_desc} | _]} ->
+        {from_tag, to_tag, " from #{from_desc} to #{to_desc}"}
     end
   end
 
