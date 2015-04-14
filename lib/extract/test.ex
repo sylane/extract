@@ -1,6 +1,7 @@
 defmodule Test do
 
-  use Extract.Types
+  use Extract.BasicTypes
+  alias Extract.BasicTypes
 
 
   @allowed_list [3, 4, 5]
@@ -12,75 +13,75 @@ defmodule Test do
   # end
 
   def test(value, from) do
-    Extract.Types.distill value, from, :string
+    BasicTypes.distill value, from, :string
   end
 
   # def test(value, format) do
-  #   Extract.Types.validate value, format
+  #   BasicTypes.validate value, format
   # end
 
   # def test(value, format) do
-  #   Extract.Types.validate(value, format, min: 3, max: 10, optional: true)
+  #   BasicTypes.validate(value, format, min: 3, max: 10, optional: true)
   # end
 
   # def test(value, format) do
-  #   Extract.Types.validate(value, format, allowed: [3, 4, 5])
+  #   BasicTypes.validate(value, format, allowed: [3, 4, 5])
   # end
 
   # def test(value, format) do
-  #   Extract.Types.validate(value, format, allowed: @allowed)
+  #   BasicTypes.validate(value, format, allowed: @allowed)
   # end
 
   # def test(value, format) do
-  #   Extract.Types.validate(value, format, optional: true)
+  #   BasicTypes.validate(value, format, optional: true)
   # end
 
   # def test(value, format) do
-  #   Extract.Types.validate(value, format, default: 42)
+  #   BasicTypes.validate(value, format, default: 42)
   # end
 
   # def test(value) do
-  #   Extract.Types.validate(value, :integer, allowed: @allowed_list, optional: true)
+  #   BasicTypes.validate(value, :integer, allowed: @allowed_list, optional: true)
   # end
 
   # def test(value) do
-  #   Extract.Types.validate(value, :integer, optional: true)
+  #   BasicTypes.validate(value, :integer, optional: true)
   # end
 
   # def test(value) do
-  #   Extract.Types.validate(value, :integer, default: 33)
+  #   BasicTypes.validate(value, :integer, default: 33)
   # end
 
   # def test(value) do
-  #   Extract.Types.validate(value, :integer, default: 33, allowed: [3, 4, 5])
+  #   BasicTypes.validate(value, :integer, default: 33, allowed: [3, 4, 5])
   # end
 
   # def test(format) do
-  #   Extract.Types.validate(3, format)
+  #   BasicTypes.validate(3, format)
   # end
 
   # def test(format) do
-  #   Extract.Types.validate(nil, format, default: 42)
+  #   BasicTypes.validate(nil, format, default: 42)
   # end
 
   # def test() do
-  #   Extract.Types.validate(3, :number)
+  #   BasicTypes.validate(3, :number)
   # end
 
   # def test() do
-  #   Extract.Types.validate(3, :integer, allowed: @allowed_map)
+  #   BasicTypes.validate(3, :integer, allowed: @allowed_map)
   # end
 
   # def test() do
-  #   Extract.Types.validate(nil, :integer)
+  #   BasicTypes.validate(nil, :integer)
   # end
 
   # def test() do
-  #   Extract.Types.validate(nil, :integer, default: 44)
+  #   BasicTypes.validate(nil, :integer, default: 44)
   # end
 
   # def test() do
-  #   Extract.Types.validate(3, :foo)
+  #   BasicTypes.validate(3, :foo)
   # end
 
 end

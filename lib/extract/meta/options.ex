@@ -6,23 +6,8 @@ defmodule Extract.Meta.Options do
   alias Extract.Meta.Error
 
 
-  def validate(_ctx, [], _allowed), do: :ok
-
-  def validate(ctx, [{name, quoted} | opts], allowed)
-   when is_atom(name) and is_list(allowed) do
-    value = resolve(ctx, name, quoted)
-    case valid?(name, value) do
-      false ->
-        {:error, {{:bad_option, {name, value}},
-                  "invalid option #{name}: #{inspect value}"}}
-      true ->
-        case Enum.member?(allowed, name) do
-          true -> validate(ctx, opts, allowed)
-          false ->
-            {:error, {{:option_not_allowed, name},
-                      "option #{name} is not allowed"}}
-        end
-    end
+  def validate(ctx, opts, allowed) do
+    _validate(ctx, resolve(ctx, opts), allowed)
   end
 
 
@@ -64,6 +49,25 @@ defmodule Extract.Meta.Options do
   end
 
 
+  defp _validate(_ctx, [], _allowed), do: :ok
+
+  defp _validate(ctx, [{name, quoted} | opts], allowed)
+   when is_atom(name) and is_list(allowed) do
+    value = resolve(ctx, quoted, name)
+    case valid?(name, value) do
+      false ->
+        {:error, {{:bad_option, {name, value}},
+                  "invalid option #{name}: #{inspect value}"}}
+      true ->
+        case Enum.member?(allowed, name) do
+          true -> _validate(ctx, opts, allowed)
+          false ->
+            {:error, {{:option_not_allowed, name},
+                      "option #{name} is not allowed"}}
+        end
+    end
+  end
+
   defp valid?(:optional, flag) when is_boolean(flag), do: true
   defp valid?(:allow_undefined, flag) when is_boolean(flag), do: true
   defp valid?(:allow_missing, flag) when is_boolean(flag), do: true
@@ -76,32 +80,39 @@ defmodule Extract.Meta.Options do
 
 
   defp get_option(ctx, opts, key, default) do
-    case Keyword.fetch(opts, key) do
-      {:ok, quoted} -> resolve(ctx, key, quoted)
+    case Keyword.fetch(resolve(ctx, opts), key) do
+      {:ok, quoted} -> resolve(ctx, quoted, key)
       :error -> default
     end
   end
 
 
   defp fetch_option(ctx, opts, key) do
-    case Keyword.fetch(opts, key) do
-      {:ok, quoted} -> {:ok, resolve(ctx, key, quoted)}
+    case Keyword.fetch(resolve(ctx, opts), key) do
+      {:ok, quoted} -> {:ok, resolve(ctx, quoted, key)}
       :error -> :error
     end
   end
 
 
-  defp resolve(ctx, key, {:@, _, _} = quoted) do
+  defp resolve(ctx, quoted, key \\ nil)
+
+  defp resolve(ctx, {:@, _, _} = quoted, key) do
     try do
       {value, []} = Context.eval_quoted(ctx, quoted)
       value
     rescue
       [MatchError, CompileError] ->
-        Error.comptime(ctx, error({:bad_option, key},
-          "invalid compile-time option #{key}: #{inspect quoted}"))
+        if key == nil do
+          Error.comptime(ctx, error(:bad_options,
+            "invalid compile-time options: #{inspect quoted}"))
+        else
+          Error.comptime(ctx, error({:bad_option, key},
+            "invalid compile-time option #{key}: #{inspect quoted}"))
+        end
     end
   end
 
-  defp resolve(_ctx, _key, value), do: value
+  defp resolve(_ctx, value, _key), do: value
 
 end

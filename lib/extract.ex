@@ -4,13 +4,13 @@ defmodule Extract do
   require Extract.Util
   require Extract.Valid
   require Extract.Trans
-  require Extract.Types
+  require Extract.BasicTypes
 
 
   defmacro __using__(_kv) do
     quote do
       import Extract, only: :macros
-      require Extract.Types
+      require Extract.BasicTypes
       require Extract.Meta.Error
       @before_compile Extract
       defmacro __using__(_kv) do

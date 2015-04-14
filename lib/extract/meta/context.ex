@@ -155,14 +155,16 @@ defmodule Extract.Meta.Context do
     try do
       map = fn %Context{} = c -> Map.get(c, field) end
       reduce = fn same, same -> same
-                  _new, _last -> raise :internal_error
+                  _new, _last -> throw Extract.Error
       end
-      subtypes = for c <- contexts, do: Keyword.get(Context.properties(c), :type_info)
+      subtypes = for c <- contexts do
+        Keyword.get(Context.properties(c), :type_info)
+      end
       type = Keyword.get(Context.properties(ctx), :type_info)
       Enum.reduce(Enum.map(contexts, map), reduce)
     rescue
       Enum.EmptyError -> Map.get(ctx, field)
-      e ->
+      Extract.Error ->
         Error.comptime ctx,
           error({:context_merge_error, field},
             "multiple sub-contexts with different value for '#{field}' flag")

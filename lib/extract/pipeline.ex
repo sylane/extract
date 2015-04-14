@@ -76,9 +76,6 @@ defmodule Extract.Pipeline do
           {:ok, {else_ast, else_ctx}} = else_branch
           sub_ctxs = for {_, {:ok, {_, c}}} <- choices, do: c
           ctx = Context.merge(unquote(ctx_var), [else_ctx] ++ sub_ctxs)
-          for {f, {:error, {e, s}}} <- choices do
-            IO.puts "EEEEE #{inspect e} #{inspect s}"
-          end
           choices_ast = for {f, {:ok, {ast, _}}} <- choices do
             [choice_ast] = quote location: :keep do
               unquote(f) -> unquote(ast)

@@ -1,4 +1,4 @@
-defmodule Extract.Types do
+defmodule Extract.BasicTypes do
 
   use Extract.Pipeline
 
@@ -86,7 +86,7 @@ defmodule Extract.Types do
     pipeline value, env: __ENV__, caller: __CALLER__ do
       _meta_validate format, opts
       Meta.terminate
-      Util.debug
+      # Util.debug
     end
   end
 
@@ -95,7 +95,7 @@ defmodule Extract.Types do
     pipeline value, env: __ENV__, caller: __CALLER__ do
       _meta_validate format, opts
       Meta.terminate!
-      Util.debug
+      # Util.debug
     end
   end
 
@@ -104,7 +104,7 @@ defmodule Extract.Types do
     pipeline value, env: __ENV__, caller: __CALLER__ do
       _meta_distill from, to, opts
       Meta.terminate
-      Util.debug
+      # Util.debug
     end
   end
 
@@ -113,7 +113,7 @@ defmodule Extract.Types do
     pipeline value, env: __ENV__, caller: __CALLER__ do
       _meta_distill from, to, opts
       Meta.terminate!
-      Util.debug
+      # Util.debug
     end
   end
 
@@ -430,7 +430,7 @@ defmodule Extract.Types do
 
 
 
-  defp _meta_bad_receipt_error(ast, ctx, from, to) do
+  defp _meta_bad_receipt_error(_ast, ctx, from, to) do
     case is_atom(from) and is_atom(to) do
       true -> Error.comptime(ctx, bad_receipt(from, to))
       false ->
@@ -440,7 +440,7 @@ defmodule Extract.Types do
   end
 
 
-  defp _meta_bad_format_error(ast, ctx, format) do
+  defp _meta_bad_format_error(_ast, ctx, format) do
     case is_atom(format) do
       true -> Error.comptime(ctx, bad_format(format))
       false -> {Error.runtime(ctx, bad_format(format)), Context.may_raise(ctx)}
