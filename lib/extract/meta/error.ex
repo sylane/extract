@@ -13,7 +13,8 @@ defmodule Extract.Meta.Error do
     aliased_fun = {:., [], [alias_ast, fun_name]}
     props_ast = quote do: Context.properties(unquote(ctx))
     args = if is_list(a), do: a ++ [props_ast], else: [props_ast]
-    {aliased_fun, c, args}
+    _ast = {aliased_fun, c, args}
+    # Extract.Meta.Debug.ast(_ast, info: "Error.comptime")
   end
 
 
@@ -144,7 +145,7 @@ defmodule Extract.Meta.Error do
   def comptime_bad_value(value, kv \\ []) do
     {tag, desc} = type_info(kv)
     reason = {:bad_value, {tag, :bad_type}}
-    message = "bad #{desc}value: #{value}"
+    message = "bad #{desc}value: #{inspect value}"
     raise Extract.Error, reason: reason, message: message
   end
 

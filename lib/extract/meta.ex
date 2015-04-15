@@ -1,5 +1,7 @@
 defmodule Extract.Meta do
 
+  use Extract.Pipeline
+
   require Extract.Meta.Context
   require Extract.Meta.Options
   require Extract.Meta.Error
@@ -55,8 +57,7 @@ defmodule Extract.Meta do
           {false, false, true, _, _, ^missing_value} ->
             # missing at compile-time and it is forbidden
             Error.comptime(ctx, value_not_allowed(missing_value))
-          {false, _, _, _, _, value}
-           when (is_atom(value) or is_number(value) or is_binary(value))->
+          {false, _, _, _, _, value} when is_comptime(value) ->
             # defined at compile time
             comptime_check_allowed(ctx, value, allowed)
           {false, _, false, _, false, ast} ->
@@ -210,12 +211,15 @@ defmodule Extract.Meta do
       {false, _, true, _, _, {:ok, default}, ^missing_value} ->
         # missing at compile-time with default value
         statments.(:else, default, default_ctx)
-      {false, _, _, _, _, _, value}
-       when is_atom(value) or is_number(value) or is_binary(value) ->
+      {false, _, _, _, _, _, value} when is_comptime(value) ->
         # defined at compile time
         statments.(:do, value, do_ctx)
-      {false, _, false, _, false, _, ast} ->
-        # cannot be undefined or missing
+      {false, _, _, _, _, _, ast} when is_list(ast) ->
+        # list cannot be undefined or missing
+        statments.(:do, ast, do_ctx)
+      {false, _, _, _, _, _, {type, _, _} = ast}
+       when type == :{} or type == :%{} ->
+        # tuples or maps cannot be undefined or missing
         statments.(:do, ast, do_ctx)
       {false, _, true, _, true, {:ok, default}, ast} ->
         # may be missing or undefined but there is a default value
@@ -606,11 +610,29 @@ defmodule Extract.Meta do
           try do
             {:ok, unquote(ast)}
           rescue
-            e in Extract.Error -> {:error, e.reason}
+            e in Extract.Error ->
+              {:error, e.reason}
           end
         end
         {ast, ctx}
     end
+  end
+
+
+  def comptime_rescue(error, ctx) do
+    ast = quote do
+      reason = Map.get(unquote(error), :reason)
+      {:error, Macro.escape(reason)}
+    end
+    {ast, ctx}
+  end
+
+
+  def comptime_rescue!(error, ctx) do
+    ast = quote do
+      raise unquote(error)
+    end
+    {ast, ctx}
   end
 
 

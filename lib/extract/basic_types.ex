@@ -2,6 +2,9 @@ defmodule Extract.BasicTypes do
 
   use Extract.Pipeline
 
+  require Extract.Error
+
+  alias Extract.Error
   alias Extract.Meta
   alias Extract.Meta.Error
   alias Extract.Meta.Options
@@ -86,7 +89,8 @@ defmodule Extract.BasicTypes do
     pipeline value, env: __ENV__, caller: __CALLER__ do
       _meta_validate format, opts
       Meta.terminate
-      # Util.debug
+    rescue
+      Meta.comptime_rescue
     end
   end
 
@@ -95,7 +99,8 @@ defmodule Extract.BasicTypes do
     pipeline value, env: __ENV__, caller: __CALLER__ do
       _meta_validate format, opts
       Meta.terminate!
-      # Util.debug
+    rescue
+      Meta.comptime_rescue!
     end
   end
 
@@ -104,7 +109,8 @@ defmodule Extract.BasicTypes do
     pipeline value, env: __ENV__, caller: __CALLER__ do
       _meta_distill from, to, opts
       Meta.terminate
-      # Util.debug
+    rescue
+      Meta.comptime_rescue
     end
   end
 
@@ -113,7 +119,8 @@ defmodule Extract.BasicTypes do
     pipeline value, env: __ENV__, caller: __CALLER__ do
       _meta_distill from, to, opts
       Meta.terminate!
-      # Util.debug
+    rescue
+      Meta.comptime_rescue!
     end
   end
 
@@ -454,7 +461,7 @@ defmodule Extract.BasicTypes do
       false -> {false, ctx}
       value when is_atom(value) ->
         Error.comptime(ctx, conv_error(value))
-      value when is_atom(value) or is_number(value) or is_binary(value) ->
+      value when is_comptime(value) ->
         # Should not really happen, the value should have been validated
         Error.comptime(ctx, error(:internal_error, "internal error"))
       ast ->
@@ -476,7 +483,7 @@ defmodule Extract.BasicTypes do
     case ast do
       value when is_integer(value) ->
         {value / 1, ctx}
-      value when is_atom(value) or is_number(value) or is_binary(value) ->
+      value when is_comptime(value) ->
         # Should not really happen, the value should have been validated
         Error.comptime(ctx, error(:internal_error, "internal error"))
       ast ->
@@ -490,7 +497,7 @@ defmodule Extract.BasicTypes do
     case ast do
       value when is_float(value) ->
         {round(value), ctx}
-      value when is_atom(value) or is_number(value) or is_binary(value) ->
+      value when is_comptime(value) ->
         # Should not really happen, the value should have been validated
         Error.comptime(ctx, error(:internal_error, "internal error"))
       ast ->
@@ -509,7 +516,7 @@ defmodule Extract.BasicTypes do
           ArgumentError ->
             Error.comptime(ctx, conv_error(value))
         end
-      value when is_atom(value) or is_number(value) ->
+      value when is_comptime(value) ->
         # Should not really happen, the value should have been validated
         Error.comptime(ctx, error(:internal_error, "internal error"))
       ast ->
@@ -534,7 +541,7 @@ defmodule Extract.BasicTypes do
       "false" -> {false, ctx}
       value when is_binary(value) ->
         Error.comptime(ctx, conv_error(value))
-      value when is_atom(value) or is_number(value) ->
+      value when is_comptime(value) ->
         # Should not really happen, the value should have been validated
         Error.comptime(ctx, error(:internal_error, "internal error"))
       ast ->
@@ -561,7 +568,7 @@ defmodule Extract.BasicTypes do
           ArgumentError ->
             Error.comptime(ctx, conv_error(value))
         end
-      value when is_atom(value) or is_number(value) ->
+      value when is_comptime(value) ->
         # Should not really happen, the value should have been validated
         Error.comptime(ctx, error(:internal_error, "internal error"))
       ast ->
@@ -589,7 +596,7 @@ defmodule Extract.BasicTypes do
           ArgumentError ->
             Error.comptime(ctx, conv_error(value))
         end
-      value when is_atom(value) or is_number(value) ->
+      value when is_comptime(value) ->
         # Should not really happen, the value should have been validated
         Error.comptime(ctx, error(:internal_error, "internal error"))
       ast ->
@@ -622,7 +629,7 @@ defmodule Extract.BasicTypes do
                 Error.comptime(ctx, conv_error(value))
             end
         end
-      value when is_atom(value) or is_number(value) ->
+      value when is_comptime(value) ->
         # Should not really happen, the value should have been validated
         Error.comptime(ctx, error(:internal_error, "internal error"))
       ast ->
@@ -648,7 +655,7 @@ defmodule Extract.BasicTypes do
 
   defp _meta_to_string(ast, ctx) do
     case ast do
-      value when is_number(value) or is_atom(value) or is_binary(value) ->
+      value when is_comptime(value) ->
         {to_string(value), ctx}
       ast ->
         {quote(do: to_string(unquote(ast))), ctx}
@@ -661,6 +668,12 @@ defmodule Extract.BasicTypes do
     {bad_ast, [bad_var]} = Error.runtime(ctx, bad_value/1)
     case ast do
       ^undefined_value -> {undefined_value, ctx}
+      {type, _, _} = value when type == :{} or type == :%{} ->
+        Error.comptime(ctx, bad_value(value))
+      value when is_list(value) ->
+        Error.comptime(ctx, bad_value(value))
+      value when is_comptime(value) ->
+        Error.comptime(ctx, bad_value(value))
       ast ->
         ast = quote do
           case unquote(ast) do
@@ -677,7 +690,11 @@ defmodule Extract.BasicTypes do
     case ast do
       value when is_atom(value) and not value in [nil, false, true] ->
         {value, ctx}
-      value when is_number(value) or is_binary(value) ->
+      {type, _, _} = value when type == :{} or type == :%{} ->
+        Error.comptime(ctx, bad_value(value))
+      value when is_list(value) ->
+        Error.comptime(ctx, bad_value(value))
+      value when is_comptime(value) ->
         Error.comptime(ctx, bad_value(value))
       ast ->
         {bad_ast, [bad_var]} = Error.runtime(ctx, bad_value/1)
@@ -696,7 +713,11 @@ defmodule Extract.BasicTypes do
   defp _meta_validate_boolean(ast, ctx, _opts) do
     case ast do
       value when is_boolean(value) -> {value, ctx}
-      value when is_atom(value) or is_number(value) or is_binary(value) ->
+      {type, _, _} = value when type == :{} or type == :%{} ->
+        Error.comptime(ctx, bad_value(value))
+      value when is_list(value) ->
+        Error.comptime(ctx, bad_value(value))
+      value when is_comptime(value) ->
         Error.comptime(ctx, bad_value(value))
       ast ->
         {bad_ast, [bad_var]} = Error.runtime(ctx, bad_value/1)
@@ -712,12 +733,12 @@ defmodule Extract.BasicTypes do
 
 
   defp _meta_validate_number(ast, ctx, opts, guard_name \\ :is_number) do
-    min = Options.fetch(ctx, opts, :min)
-    max = Options.fetch(ctx, opts, :max)
+    min_opt = Options.fetch(ctx, opts, :min)
+    max_opt = Options.fetch(ctx, opts, :max)
     var = Macro.var(:value, __MODULE__)
     guard = {guard_name, [context: Elixir, import: Kernel], [var]}
     {bad_ast, [bad_var]} = Error.runtime(ctx, bad_value/1)
-    case {apply(Kernel, guard_name, [ast]), ast, min, max} do
+    case {apply(Kernel, guard_name, [ast]), ast, min_opt, max_opt} do
       {true, num, :error, :error} -> {num, ctx}
       {true, num, {:ok, min}, :error}
        when num >= min -> {num, ctx}
@@ -729,13 +750,18 @@ defmodule Extract.BasicTypes do
         Error.comptime(ctx, value_too_big(num, max))
       {true, num, {:ok, min}, {:ok, max}}
        when num >= min and num <= max -> {num, ctx}
-      {true, num, {:ok, min}, {:ok, _max}}
-       when num >= min-> {num, ctx}
-        Error.comptime(ctx, value_too_big(num. max))
+      {true, num, {:ok, min}, {:ok, max}}
+       when num >= min ->
+        Error.comptime(ctx, value_too_big(num, max))
       {true, num, {:ok, min}, {:ok, _max}} ->
         Error.comptime(ctx, value_too_small(num, min))
+      {false, {type, _, _} = value, _, _}
+       when type == :{} or type == :%{} ->
+        Error.comptime(ctx, bad_value(value))
+      {false, value, _, _} when is_list(value) ->
+        Error.comptime(ctx, bad_value(value))
       {false, value, _, _}
-       when is_atom(value) or is_number(value) or is_binary(value) ->
+       when is_comptime(value) ->
         Error.comptime(ctx, bad_value(value))
       {false, ast, :error, :error} ->
         {bad_ast, [bad_var]} = Error.runtime(ctx, bad_value/1)
@@ -807,7 +833,11 @@ defmodule Extract.BasicTypes do
           false -> Error.comptime(ctx, bad_value(value))
           true -> {value, ctx}
         end
-      value when is_atom(value) or is_number(value) ->
+      {type, _, _} = value when type == :{} or type == :%{} ->
+        Error.comptime(ctx, bad_value(value))
+      value when is_list(value) ->
+        Error.comptime(ctx, bad_value(value))
+      value when is_comptime(value) ->
         Error.comptime(ctx, bad_value(value))
       ast ->
         {bad_ast, [bad_var]} = Error.runtime(ctx, bad_value/1)
@@ -829,7 +859,11 @@ defmodule Extract.BasicTypes do
   defp _meta_validate_binary(ast, ctx, _opts) do
     case ast do
       value when is_binary(value) -> {value, ctx}
-      value when is_atom(value) or is_number(value) ->
+      {type, _, _} = value when type == :{} or type == :%{} ->
+        Error.comptime(ctx, bad_value(value))
+      value when is_list(value) ->
+        Error.comptime(ctx, bad_value(value))
+      value when is_comptime(value) ->
         Error.comptime(ctx, bad_value(value))
       ast ->
         {bad_ast, [bad_var]} = Error.runtime(ctx, bad_value/1)

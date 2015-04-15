@@ -13,7 +13,8 @@ defmodule Extract.Mixfile do
   end
 
   defp deps do
-    [{:excheck, "~> 0.2.1", only: :test},
-     {:triq,   github: "krestenkrab/triq", branch: "master", only: :test},]
+    [#{:excheck, "~> 0.2.1", only: :test},
+     {:excheck, github: "sylane/excheck", branch: "keep_exunit_error", only: :test},
+     {:triq,    github: "krestenkrab/triq", only: :test}]
   end
 end

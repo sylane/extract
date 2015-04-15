@@ -16,21 +16,48 @@ defmodule Extract.Pipeline do
   end
 
 
+  defmacro is_comptime(ast) do
+    case Macro.Env.in_guard?(__CALLER__) do
+      true ->
+        quote do
+          is_number(unquote(ast))
+          or is_atom(unquote(ast))
+          or is_binary(unquote(ast))
+          or (is_tuple(unquote(ast)) and tuple_size(unquote(ast)) == 2)
+        end
+      false ->
+        quote do
+          value = unquote(ast)
+          is_number(value) or is_atom(value) or is_binary(value)
+            or (is_tuple(value) and tuple_size(value) == 2)
+        end
+    end
+  end
+
+
   defmacro pipeline(ast, ctx, body \\ [])
 
   defmacro pipeline(ast, kv, body) when is_list(kv) do
-    block = Keyword.get(body, :do)
     env = Keyword.get(kv, :env)
     caller = Keyword.get(kv, :caller)
     ctx = quote location: :keep do
       Extract.Meta.Context.new(env: unquote(env), caller: unquote(caller))
     end
-    compose(ast, ctx, block, finalize: true)
+    pipe_ast = _pipeline(ast, ctx, body, finalize: true)
+    case Keyword.get(kv, :debug, false) do
+      false -> pipe_ast
+      true ->
+        quote do
+          ast = unquote(pipe_ast)
+          debug_info = Context.debug(unquote(ctx)) #FIXME: not duplicating
+          Extract.Meta.Debug.ast(ast, info: debug_info)
+        end
+    end
   end
 
 
   defmacro pipeline(ast, ctx, body) when is_tuple(ctx) do
-    compose(ast, ctx, Keyword.get(body, :do))
+    _pipeline(ast, ctx, body)
   end
 
 
@@ -76,11 +103,20 @@ defmodule Extract.Pipeline do
           {:ok, {else_ast, else_ctx}} = else_branch
           sub_ctxs = for {_, {:ok, {_, c}}} <- choices, do: c
           ctx = Context.merge(unquote(ctx_var), [else_ctx] ++ sub_ctxs)
-          choices_ast = for {f, {:ok, {ast, _}}} <- choices do
-            [choice_ast] = quote location: :keep do
-              unquote(f) -> unquote(ast)
+          choices_ast = for {f, choice} <- choices do
+            case choice do
+              {:ok, {ast, _}} ->
+                [choice_ast] = quote location: :keep do
+                  unquote(f) -> unquote(ast)
+                end
+                choice_ast
+              {:error, {error, _stacktrace}} ->
+                escaped_error = Macro.escape(error)
+                [choice_ast] = quote location: :keep do
+                  unquote(f) -> raise unquote(escaped_error)
+                end
+                choice_ast
             end
-            choice_ast
           end
           default_ast = quote location: :keep do
             _other -> unquote(else_ast)
@@ -93,6 +129,26 @@ defmodule Extract.Pipeline do
           end
           {ast, ctx}
       end
+    end
+  end
+
+
+  defp _pipeline(ast, ctx, body, opts \\ []) do
+    pipe_ast = compose(ast, ctx, Keyword.get(body, :do), opts)
+    case Keyword.fetch(body, :rescue) do
+      :error -> pipe_ast
+      {:ok, block} ->
+        var = Macro.var(:error, __MODULE__)
+        rescue_ast = compose(var, ctx, block, opts)
+        quote do
+          try do
+            unquote(pipe_ast)
+          rescue
+            error in Extract.Error ->
+              unquote(var) = Macro.escape(error)
+              unquote(rescue_ast)
+          end
+        end
     end
   end
 

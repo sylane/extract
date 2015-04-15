@@ -1,6 +1,6 @@
 defmodule Extract.Error do
 
-  defexception [:message, :reason, stash: []]
+  defexception [:message, :reason]
 
   def exception(kv) do
     reason = Keyword.fetch!(kv, :reason)
