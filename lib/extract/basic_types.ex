@@ -781,8 +781,7 @@ defmodule Extract.BasicTypes do
             unquote(var) when unquote(guard)
              and unquote(var) >= unquote(min) ->
               unquote(var)
-            unquote(small_var)
-             when is_integer(unquote(small_var)) ->
+            unquote(small_var) = unquote(var) when unquote(guard) ->
               unquote(small_ast)
             unquote(bad_var) ->
               unquote(bad_ast)
@@ -796,7 +795,7 @@ defmodule Extract.BasicTypes do
             unquote(var) when unquote(guard)
              and unquote(var) <= unquote(max) ->
               unquote(var)
-            unquote(big_var) when is_integer(unquote(big_var)) ->
+            unquote(big_var) = unquote(var) when unquote(guard) ->
               unquote(big_ast)
             unquote(bad_var) ->
               unquote(bad_ast)
@@ -812,10 +811,10 @@ defmodule Extract.BasicTypes do
              and unquote(var) >= unquote(min)
              and unquote(var) <= unquote(max) ->
               unquote(var)
-            unquote(big_var) when is_integer(unquote(big_var))
+            unquote(big_var) = unquote(var) when unquote(guard)
              and unquote(big_var) >= unquote(min) ->
               unquote(big_ast)
-            unquote(small_var) when is_integer(unquote(small_var)) ->
+            unquote(small_var) = unquote(var) when unquote(guard) ->
               unquote(small_ast)
             unquote(bad_var) ->
               unquote(bad_ast)

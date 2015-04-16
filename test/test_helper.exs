@@ -171,6 +171,44 @@ defmodule TestCompiler do
   end
 
 
+  def _module(_fun, [{:static, _} | _]), do: {true, TestCompiler.Dynamic}
+
+  def _module(fun, specs) do
+    _canonical_specs(specs, [Macro.to_string(fun)])
+  end
+
+
+  defp _canonical_specs([], acc) do
+    hash = :crypto.hash(:md4, :erlang.term_to_binary(acc))
+    hex_bytes = for <<x::8 <- hash>>, do:  :io_lib.format("~2.16.0B",[x])
+    uid = List.to_string(List.flatten(hex_bytes))
+    mod = String.to_atom("Dynamic_" <> uid)
+    mod_ast = {:__aliases__, [], [:Elixir, :TestCompiler, mod]}
+    {abs_mod, []} = Code.eval_quoted(mod_ast)
+    {false, abs_mod}
+  end
+
+  defp _canonical_specs([{:dynamic, _} | specs], acc) do
+    _canonical_specs(specs, [:dynamic | acc])
+  end
+
+  defp _canonical_specs([{:static, value} | specs], acc) do
+    _canonical_specs(specs, [{:static, value}| acc])
+  end
+
+  defp _canonical_specs([{:attriute, value} | specs], acc) do
+    _canonical_specs(specs, [{:attribute, value} | acc])
+  end
+
+  defp _canonical_specs([{:static_kw, kw} | specs], acc) do
+    _canonical_specs(specs, [{:static_kw, List.keysort(kw, 0)} | acc])
+  end
+
+  defp _canonical_specs([{:attribute_kw, kw} | specs], acc) do
+    _canonical_specs(specs, [{:attribute_kw, List.keysort(kw, 0)} | acc])
+  end
+
+
   defp _execute(call) do
     {{:., _, [{:__aliases__, _, _} = mod, _]} = fun, ctx, [specs]} = call
     use_ast = {:use, [context: Elixir, import: Kernel], [mod]}
@@ -178,38 +216,43 @@ defmodule TestCompiler do
     escaped_fun = Macro.escape(fun)
     escaped_ctx = Macro.escape(ctx)
     _macro_ast = quote do
-      use_ast = unquote(escaped_use)
       fun_ast = unquote(escaped_fun)
-      ctx_ast = unquote(escaped_ctx)
-      module = unquote(mod)
-      {attrs, vars, args, params} = TestCompiler._prepare(unquote(specs))
-      call_ast = {fun_ast, ctx_ast, args}
-      call_desc = Macro.to_string(call_ast)
-      dyn_prarms = for {{name, _, _}, value} <- Enum.zip(vars, params) do
-        "#{name} = #{inspect value}"
-      end
-      dyn_attribs = for {:@, _, [{name, _, [value]}]} <- attrs do
-        "@#{name} = #{inspect value}"
-      end
-      desc = case dyn_prarms ++ dyn_attribs do
-        [] -> call_desc
-        extra -> call_desc <> " with " <> Enum.join(extra, ", ")
-      end
-
-      mod_ast = quote do
-        defmodule TestCompiler.Dynamic do
-          unquote(use_ast)
-          unquote_splicing(attrs)
-          def test(unquote_splicing(vars)) do
-            unquote(call_ast)
+      specs = unquote(specs)
+      {force_compile, test_mod} = TestCompiler._module(fun_ast, specs)
+      {attrs, vars, args, params} = TestCompiler._prepare(specs)
+      if force_compile or not Code.ensure_loaded?(test_mod) do
+        use_ast = unquote(escaped_use)
+        ctx_ast = unquote(escaped_ctx)
+        module = unquote(mod)
+        call_ast = {fun_ast, ctx_ast, args}
+        call_desc = Macro.to_string(call_ast)
+        dyn_prarms = for {{name, _, _}, value} <- Enum.zip(vars, params) do
+          "#{name} = #{inspect value}"
+        end
+        dyn_attribs = for {:@, _, [{name, _, [value]}]} <- attrs do
+          "@#{name} = #{inspect value}"
+        end
+        desc = case dyn_prarms ++ dyn_attribs do
+          [] -> call_desc
+          extra -> call_desc <> " with " <> Enum.join(extra, ", ")
+        end
+        mod_ast = quote do
+          defmodule unquote(test_mod) do
+            unquote(use_ast)
+            unquote_splicing(attrs)
+            def desc(), do: unquote(desc)
+            def test(unquote_splicing(vars)) do
+              unquote(call_ast)
+            end
           end
         end
+        # Extract.Meta.Debug.ast(mod_ast, info: "dynamic module")
+        Code.compiler_options(ignore_module_conflict: true)
+        {{:module, _, _, {:test, _}}, []} = Code.eval_quoted(mod_ast)
       end
-      # Extract.Meta.Debug.ast(mod_ast, info: "dynamic module")
-      Code.compiler_options(ignore_module_conflict: true)
-      {{:module, _, _, {:test, _}}, []} = Code.eval_quoted(mod_ast)
       try do
-        result = apply(TestCompiler.Dynamic, :test, params)
+        desc = apply(test_mod, :desc, [])
+        result = apply(test_mod, :test, params)
         {:ok, result, desc}
       rescue
         error in Extract.Error ->

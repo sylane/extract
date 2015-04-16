@@ -25,13 +25,6 @@ defmodule Extract.Meta do
   end
 
 
-  def no_body_allowed(ast, ctx, []), do: {ast, ctx}
-
-  def no_body_allowed(_ast, ctx, _) do
-    Error.comptime(ctx, error(:no_body_allowed, "no body allowed"))
-  end
-
-
   def allowed_value(ast, ctx, opts) do
     undefined_value = Context.undefined_value(ctx)
     missing_value = Context.missing_value(ctx)
@@ -620,11 +613,15 @@ defmodule Extract.Meta do
 
 
   def comptime_rescue(error, ctx) do
-    ast = quote do
-      reason = Map.get(unquote(error), :reason)
-      {:error, Macro.escape(reason)}
+    case error do
+      {:%{}, _, kv} -> {{:error, Keyword.get(kv, :reason, :unknown)}, ctx}
+      value when is_comptime(value) -> {{:error, value}, ctx}
+      error_ast ->
+        ast = quote do
+          {:error, Map.get(unquote(error_ast), :reason)}
+        end
+        {ast, ctx}
     end
-    {ast, ctx}
   end
 
 
@@ -658,7 +655,7 @@ defmodule Extract.Meta do
 
   defp comptime_check_allowed(ctx, _value, allowed) do
     Error.comptime(ctx, error({:bad_option, {:allowed, allowed}},
-      "invalid compile-time option allowed: #{inspect allowed}"))
+      "invalid 'allowed' option value: #{inspect allowed}"))
   end
 
 
@@ -695,7 +692,7 @@ defmodule Extract.Meta do
 
   defp runtime_check_allowed(ctx, _value, allowed) do
     Error.comptime(ctx, error({:bad_option, {:allowed, allowed}},
-      "invalid compile-time option allowed: #{inspect allowed}"))
+      "invalid 'allowed' option value: #{inspect allowed}"))
   end
 
 end
