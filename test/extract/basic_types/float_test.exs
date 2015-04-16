@@ -62,8 +62,8 @@ defmodule Extract.BasicTypes.FloatTest do
 
   @tag timeout: 60000
   property "invalid float" do
-    for_all x in any do
-      implies not is_float(x) do
+    for_all x in simpler_any do
+      implies not is_float(x) and x != nil do
         assert_invalid {:bad_value, {:float, :bad_type}}, x, :float
       end
     end

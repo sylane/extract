@@ -70,8 +70,8 @@ defmodule Extract.BasicTypes.StringTest do
 
   @tag timeout: 60000
   property "invalid string" do
-    for_all x in any do
-      implies not is_binary(x) do
+    for_all x in simpler_any do
+      implies not is_binary(x) and x != nil do
         assert_invalid {:bad_value, {:string, :bad_type}}, x, :string
       end
     end

@@ -27,8 +27,8 @@ defmodule Extract.BasicTypes.BinaryTest do
 
   @tag timeout: 60000
   property "invalid binary" do
-    for_all x in any do
-      implies not is_binary(x) do
+    for_all x in simpler_any do
+      implies not is_binary(x) and x != nil do
         assert_invalid {:bad_value, {:binary, :bad_type}}, x, :binary
       end
     end

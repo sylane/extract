@@ -9,7 +9,7 @@ defmodule Extract.BasicTypes.UndefinedTest do
 
   @tag timeout: 60000
   property "invalid undefined" do
-    for_all x in any do
+    for_all x in simpler_any do
       implies x != nil do
         assert_invalid {:bad_value, {:undefined, :bad_type}}, x, :undefined
       end

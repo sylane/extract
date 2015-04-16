@@ -11,32 +11,49 @@ defmodule TestHelper do
   end
 
 
+  defmacro basic_any() do
+    quote do
+      oneof([int, real, bool, atom, nil])
+    end
+  end
+
+
+  defmacro simpler_any() do
+    quote do
+      oneof([basic_any, [basic_any | basic_any],
+             list(basic_any), tuple(basic_any)])
+    end
+  end
+
+
   defmacro assert_valid(exp, val, fmt, opts \\ []) do
     _ast = quote location: :keep do
-      val = unquote(val)
-      fmt = unquote(fmt)
-      opts = unquote(opts)
-      expect_result({:ok, unquote(exp)},
-        Extract.BasicTypes.validate(static: val, static: fmt, attribute_kw: opts))
-      expect_result({:ok, unquote(exp)},
-        Extract.BasicTypes.validate(static: val, static: fmt, static_kw: opts))
-      expect_result({:ok, unquote(exp)},
-        Extract.BasicTypes.validate(dynamic: val, static: fmt, static_kw: opts))
-      expect_result({:ok, unquote(exp)},
-        Extract.BasicTypes.validate(static: val, dynamic: fmt, static_kw: opts))
-      expect_result({:ok, unquote(exp)},
-        Extract.BasicTypes.validate(dynamic: val, dynamic: fmt, static_kw: opts))
-      expect_result(unquote(exp),
-        Extract.BasicTypes.validate!(static: val, static: fmt, attribute_kw: opts))
-      expect_result(unquote(exp),
-        Extract.BasicTypes.validate!(static: val, static: fmt, static_kw: opts))
-      expect_result(unquote(exp),
-        Extract.BasicTypes.validate!(dynamic: val, static: fmt, static_kw: opts))
-      expect_result(unquote(exp),
-        Extract.BasicTypes.validate!(static: val, dynamic: fmt, static_kw: opts))
-      expect_result(unquote(exp),
-        Extract.BasicTypes.validate!(dynamic: val, dynamic: fmt, static_kw: opts))
-      true
+      fn ->
+        val = unquote(val)
+        fmt = unquote(fmt)
+        opts = unquote(opts)
+        expect_result({:ok, unquote(exp)},
+          Extract.BasicTypes.validate(static: val, static: fmt, attribute_kw: opts))
+        expect_result({:ok, unquote(exp)},
+          Extract.BasicTypes.validate(static: val, static: fmt, static_kw: opts))
+        expect_result({:ok, unquote(exp)},
+          Extract.BasicTypes.validate(dynamic: val, static: fmt, static_kw: opts))
+        expect_result({:ok, unquote(exp)},
+          Extract.BasicTypes.validate(static: val, dynamic: fmt, static_kw: opts))
+        expect_result({:ok, unquote(exp)},
+          Extract.BasicTypes.validate(dynamic: val, dynamic: fmt, static_kw: opts))
+        expect_result(unquote(exp),
+          Extract.BasicTypes.validate!(static: val, static: fmt, attribute_kw: opts))
+        expect_result(unquote(exp),
+          Extract.BasicTypes.validate!(static: val, static: fmt, static_kw: opts))
+        expect_result(unquote(exp),
+          Extract.BasicTypes.validate!(dynamic: val, static: fmt, static_kw: opts))
+        expect_result(unquote(exp),
+          Extract.BasicTypes.validate!(static: val, dynamic: fmt, static_kw: opts))
+        expect_result(unquote(exp),
+          Extract.BasicTypes.validate!(dynamic: val, dynamic: fmt, static_kw: opts))
+        true
+      end.()
     end
     # Extract.Meta.Debug.ast(_ast, info: "assert_valid")
   end
@@ -44,30 +61,32 @@ defmodule TestHelper do
 
   defmacro assert_invalid(exp, val, fmt, opts \\ []) do
     _ast = quote location: :keep do
-      val = unquote(val)
-      fmt = unquote(fmt)
-      opts = unquote(opts)
-      expect_result({:error, unquote(exp)},
-        Extract.BasicTypes.validate(static: val, static: fmt, attribute_kw: opts))
-      expect_result({:error, unquote(exp)},
-        Extract.BasicTypes.validate(static: val, static: fmt, static_kw: opts))
-      expect_result({:error, unquote(exp)},
-        Extract.BasicTypes.validate(dynamic: val, static: fmt, static_kw: opts))
-      expect_result({:error, unquote(exp)},
-        Extract.BasicTypes.validate(static: val, dynamic: fmt, static_kw: opts))
-      expect_result({:error, unquote(exp)},
-        Extract.BasicTypes.validate(dynamic: val, dynamic: fmt, static_kw: opts))
-      expect_raise(unquote(exp),
-        Extract.BasicTypes.validate!(static: val, static: fmt, attribute_kw: opts))
-      expect_raise(unquote(exp),
-        Extract.BasicTypes.validate!(static: val, static: fmt, static_kw: opts))
-      expect_raise(unquote(exp),
-        Extract.BasicTypes.validate!(dynamic: val, static: fmt, static_kw: opts))
-      expect_raise(unquote(exp),
-        Extract.BasicTypes.validate!(static: val, dynamic: fmt, static_kw: opts))
-      expect_raise(unquote(exp),
-        Extract.BasicTypes.validate!(dynamic: val, dynamic: fmt, static_kw: opts))
-      true
+      fn ->
+        val = unquote(val)
+        fmt = unquote(fmt)
+        opts = unquote(opts)
+        expect_result({:error, unquote(exp)},
+          Extract.BasicTypes.validate(static: val, static: fmt, attribute_kw: opts))
+        expect_result({:error, unquote(exp)},
+          Extract.BasicTypes.validate(static: val, static: fmt, static_kw: opts))
+        expect_result({:error, unquote(exp)},
+          Extract.BasicTypes.validate(dynamic: val, static: fmt, static_kw: opts))
+        expect_result({:error, unquote(exp)},
+          Extract.BasicTypes.validate(static: val, dynamic: fmt, static_kw: opts))
+        expect_result({:error, unquote(exp)},
+          Extract.BasicTypes.validate(dynamic: val, dynamic: fmt, static_kw: opts))
+        expect_raise(unquote(exp),
+          Extract.BasicTypes.validate!(static: val, static: fmt, attribute_kw: opts))
+        expect_raise(unquote(exp),
+          Extract.BasicTypes.validate!(static: val, static: fmt, static_kw: opts))
+        expect_raise(unquote(exp),
+          Extract.BasicTypes.validate!(dynamic: val, static: fmt, static_kw: opts))
+        expect_raise(unquote(exp),
+          Extract.BasicTypes.validate!(static: val, dynamic: fmt, static_kw: opts))
+        expect_raise(unquote(exp),
+          Extract.BasicTypes.validate!(dynamic: val, dynamic: fmt, static_kw: opts))
+        true
+      end.()
     end
     # Extract.Meta.Debug.ast(_ast, info: "assert_invalid")
   end
@@ -92,19 +111,21 @@ defmodule TestCompiler do
     ast = _execute(call)
     exp_str = Macro.to_string(expected)
     _ast = quote do
-      case unquote(ast) do
-        {:ok, unquote(expected) = result, _} -> result
-        {:ok, other, desc} ->
-          raise ExUnit.AssertionError,
-            right: other,
-            expr: unquote(exp_str) <> " = " <> desc,
-            message: "match (=) failed"
-        {:error, {error, _}, desc} ->
-          raise ExUnit.AssertionError,
-            expr: unquote(exp_str) <> " = " <> desc,
-            message: "expected result but got Extract.Error with "
-                     <> "reason #{inspect error.reason}"
-      end
+      fn ->
+        case unquote(ast) do
+          {:ok, unquote(expected) = result, _} -> result
+          {:ok, other, desc} ->
+            raise ExUnit.AssertionError,
+              right: other,
+              expr: unquote(exp_str) <> " = " <> desc,
+              message: "match (=) failed"
+          {:error, {error, _}, desc} ->
+            raise ExUnit.AssertionError,
+              expr: unquote(exp_str) <> " = " <> desc,
+              message: "expected result but got Extract.Error with "
+                       <> "reason #{inspect error.reason}"
+        end
+      end.()
     end
     # Extract.Meta.Debug.ast(_ast, info: "expect_result")
   end
@@ -114,22 +135,24 @@ defmodule TestCompiler do
     ast = _execute(call)
     exp_str = Macro.to_string(reason)
     _ast = quote do
-      case unquote(ast) do
-        {:ok, result, desc} ->
-          raise ExUnit.AssertionError,
-            right: result,
-            expr: desc,
-            message: "expected Extract.Error with reason #{unquote(exp_str)}"
-        {:error, {error, _}, desc} ->
-          case error.reason do
-            unquote(reason) -> error
-            other ->
-              raise ExUnit.AssertionError,
-                expr: desc,
-                message: "expected Extract.Error with reason #{unquote(exp_str)} "
-                         <> "but got one with reason #{inspect other}"
-          end
-      end
+      fn ->
+        case unquote(ast) do
+          {:ok, result, desc} ->
+            raise ExUnit.AssertionError,
+              right: result,
+              expr: desc,
+              message: "expected Extract.Error with reason #{unquote(exp_str)}"
+          {:error, {error, _}, desc} ->
+            case error.reason do
+              unquote(reason) -> error
+              other ->
+                raise ExUnit.AssertionError,
+                  expr: desc,
+                  message: "expected Extract.Error with reason #{unquote(exp_str)} "
+                           <> "but got one with reason #{inspect other}"
+            end
+        end
+      end.()
     end
     # Extract.Meta.Debug.ast(_ast, info: "expect_raise")
   end

@@ -59,8 +59,8 @@ defmodule Extract.BasicTypes.IntegerTest do
 
   @tag timeout: 60000
   property "invalid integer" do
-    for_all x in any do
-      implies not is_integer(x) do
+    for_all x in simpler_any do
+      implies not is_integer(x) and x != nil do
         assert_invalid {:bad_value, {:integer, :bad_type}}, x, :integer
       end
     end

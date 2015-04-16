@@ -64,8 +64,8 @@ defmodule Extract.BasicTypes.NumberTest do
 
   @tag timeout: 60000
   property "invalid number" do
-    for_all x in any do
-      implies not is_number(x) do
+    for_all x in simpler_any do
+      implies not is_number(x) and x != nil do
         assert_invalid {:bad_value, {:number, :bad_type}}, x, :number
       end
     end
