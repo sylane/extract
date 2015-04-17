@@ -14,7 +14,7 @@ defmodule Extract.Mixfile do
 
   defp deps do
     [#{:excheck, "~> 0.2.1", only: :test},
-     {:excheck, github: "sylane/excheck", branch: "keep_exunit_error", only: :test},
+     {:excheck, github: "sylane/excheck", branch: "redefine_atom", only: :test},
      {:triq,    github: "krestenkrab/triq", only: :test}]
   end
 end

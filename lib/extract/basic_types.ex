@@ -216,7 +216,7 @@ defmodule Extract.BasicTypes do
               _meta_validate :integer, opts
             :float ->
               Meta.type_info :float, "float"
-              _meta_int_to_float
+              _meta_number_to_float
               _meta_validate :float, opts
             :number ->
               Meta.type_info :number, "number"
@@ -240,7 +240,7 @@ defmodule Extract.BasicTypes do
               _meta_validate :undefined, opts
             :integer ->
               Meta.type_info :integer, "integer"
-              _meta_float_to_int
+              _meta_number_to_int
               _meta_validate :integer, opts
             :float ->
               Meta.type_info :float, "float"
@@ -267,9 +267,11 @@ defmodule Extract.BasicTypes do
               _meta_validate :undefined, opts
             :integer ->
               Meta.type_info :integer, "integer"
+              _meta_number_to_int
               _meta_validate :integer, opts
             :float ->
               Meta.type_info :float, "float"
+              _meta_number_to_float
               _meta_validate :float, opts
             :number ->
               Meta.type_info :number, "number"
@@ -460,13 +462,13 @@ defmodule Extract.BasicTypes do
       true -> {true, ctx}
       false -> {false, ctx}
       value when is_atom(value) ->
-        Error.comptime(ctx, conv_error(value))
+        Error.comptime(ctx, distillation_error(value))
       value when is_comptime(value) ->
         # Should not really happen, the value should have been validated
         Error.comptime(ctx, error(:internal_error, "internal error"))
       ast ->
         # We assume the value is an integer, it should have been validated
-        {error, [var]} = Error.runtime(ctx, conv_error/1)
+        {error, [var]} = Error.runtime(ctx, distillation_error/1)
         ast = quote do
           case unquote(ast) do
             true -> true
@@ -479,8 +481,10 @@ defmodule Extract.BasicTypes do
   end
 
 
-  defp _meta_int_to_float(ast, ctx) do
+  defp _meta_number_to_float(ast, ctx) do
     case ast do
+      value when is_float(value) ->
+        {value, ctx}
       value when is_integer(value) ->
         {value / 1, ctx}
       value when is_comptime(value) ->
@@ -493,8 +497,10 @@ defmodule Extract.BasicTypes do
   end
 
 
-  defp _meta_float_to_int(ast, ctx) do
+  defp _meta_number_to_int(ast, ctx) do
     case ast do
+      value when is_integer(value) ->
+        {value, ctx}
       value when is_float(value) ->
         {round(value), ctx}
       value when is_comptime(value) ->
@@ -514,14 +520,14 @@ defmodule Extract.BasicTypes do
           {String.to_existing_atom(value), ctx}
         rescue
           ArgumentError ->
-            Error.comptime(ctx, conv_error(value))
+            Error.comptime(ctx, value_not_allowed(value))
         end
       value when is_comptime(value) ->
         # Should not really happen, the value should have been validated
         Error.comptime(ctx, error(:internal_error, "internal error"))
       ast ->
         # We assume the value is a string, it should have been validated
-        {error, [var]} = Error.runtime(ctx, conv_error/1)
+        {error, [var]} = Error.runtime(ctx, value_not_allowed/1)
         ast = quote do
           unquote(var) = unquote(ast)
           try do
@@ -540,13 +546,13 @@ defmodule Extract.BasicTypes do
       "true" -> {true, ctx}
       "false" -> {false, ctx}
       value when is_binary(value) ->
-        Error.comptime(ctx, conv_error(value))
+        Error.comptime(ctx, distillation_error(value))
       value when is_comptime(value) ->
         # Should not really happen, the value should have been validated
         Error.comptime(ctx, error(:internal_error, "internal error"))
       ast ->
         # We assume the value is a string, it should have been validated
-        {error, [var]} = Error.runtime(ctx, conv_error/1)
+        {error, [var]} = Error.runtime(ctx, distillation_error/1)
         ast = quote do
           case unquote(ast) do
             "true" -> true
@@ -566,14 +572,14 @@ defmodule Extract.BasicTypes do
           {String.to_integer(value), ctx}
         rescue
           ArgumentError ->
-            Error.comptime(ctx, conv_error(value))
+            Error.comptime(ctx, distillation_error(value))
         end
       value when is_comptime(value) ->
         # Should not really happen, the value should have been validated
         Error.comptime(ctx, error(:internal_error, "internal error"))
       ast ->
         # We assume the value is a string, it should have been validated
-        {error, [var]} = Error.runtime(ctx, conv_error/1)
+        {error, [var]} = Error.runtime(ctx, distillation_error/1)
         ast = quote do
           unquote(var) = unquote(ast)
           try do
@@ -594,14 +600,14 @@ defmodule Extract.BasicTypes do
           {String.to_float(value), ctx}
         rescue
           ArgumentError ->
-            Error.comptime(ctx, conv_error(value))
+            Error.comptime(ctx, distillation_error(value))
         end
       value when is_comptime(value) ->
         # Should not really happen, the value should have been validated
         Error.comptime(ctx, error(:internal_error, "internal error"))
       ast ->
         # We assume the value is a string, it should have been validated
-        {error, [var]} = Error.runtime(ctx, conv_error/1)
+        {error, [var]} = Error.runtime(ctx, distillation_error/1)
         ast = quote do
           unquote(var) = unquote(ast)
           try do
@@ -626,7 +632,7 @@ defmodule Extract.BasicTypes do
               {String.to_float(value), ctx}
             rescue
               ArgumentError ->
-                Error.comptime(ctx, conv_error(value))
+                Error.comptime(ctx, distillation_error(value))
             end
         end
       value when is_comptime(value) ->
@@ -634,7 +640,7 @@ defmodule Extract.BasicTypes do
         Error.comptime(ctx, error(:internal_error, "internal error"))
       ast ->
         # We assume the value is a string, it should have been validated
-        {error, [var]} = Error.runtime(ctx, bad_value/1)
+        {error, [var]} = Error.runtime(ctx, distillation_error/1)
         ast = quote do
           unquote(var) = unquote(ast)
           try do
@@ -688,7 +694,7 @@ defmodule Extract.BasicTypes do
 
   defp _meta_validate_atom(ast, ctx, _opts) do
     case ast do
-      value when is_atom(value) and not value in [nil, false, true] ->
+      value when is_atom(value) and value != nil ->
         {value, ctx}
       {type, _, _} = value when type == :{} or type == :%{} ->
         Error.comptime(ctx, bad_value(value))
@@ -700,7 +706,7 @@ defmodule Extract.BasicTypes do
         {bad_ast, [bad_var]} = Error.runtime(ctx, bad_value/1)
         ast = quote do
           case unquote(ast) do
-            value when is_atom(value) and not value in [nil, false, true] ->
+            value when is_atom(value) and value != nil ->
               value
             unquote(bad_var) -> unquote(bad_ast)
           end

@@ -202,17 +202,17 @@ defmodule Extract.Meta.Error do
   end
 
 
-  def comptime_conv_error(value, kv \\ []) do
+  def comptime_distillation_error(value, kv \\ []) do
     {from_tag, to_tag, desc} = conv_info(kv)
-    reason = {:conv_error, {from_tag, to_tag}}
+    reason = {:distillation_error, {from_tag, to_tag}}
     message = "error converting value#{desc}: #{inspect value}"
     raise Extract.Error, reason: reason, message: message
   end
 
 
-  defmacro runtime_conv_error(value, kv \\ []) do
+  defmacro runtime_distillation_error(value, kv \\ []) do
     {from_tag, to_tag, desc} = conv_info(kv)
-    reason = {:conv_error, {from_tag, to_tag}}
+    reason = {:distillation_error, {from_tag, to_tag}}
     message = "error converting value#{desc}: "
     quote do
       raise Extract.Error,

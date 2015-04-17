@@ -108,4 +108,105 @@ defmodule Extract.BasicTypes.IntegerTest do
     end
   end
 
+  test "undefined to integer" do
+    assert_distill_error {:undefined_value, :integer}, nil, :undefined, :integer
+    assert_distilled nil, nil, :undefined, :integer, optional: true
+    assert_distilled nil, nil, :undefined, :integer, allow_undefined: true
+    assert_distilled 42, nil, :undefined, :integer, default: 42
+  end
+
+  test "atom to integer" do
+    assert_distill_error {:bad_receipt, {:atom, :integer}},
+      :"42", :atom, :integer
+  end
+
+  test "boolean to integer" do
+    assert_distill_error {:bad_receipt, {:boolean, :integer}},
+      false, :boolean, :integer
+  end
+
+  @tag timeout: 60000
+  property "integer to integer" do
+    for_all x in int do
+      assert_distilled ^x, x, :integer, :integer
+    end
+  end
+
+  @tag timeout: 60000
+  test "float to integer" do
+    for_all x in real do
+      i = round(x)
+      assert_distilled ^i, x, :float, :integer
+    end
+  end
+
+  @tag timeout: 60000
+  property "number to integer" do
+    for_all x in number do
+      i = round(x)
+      assert_distilled ^i, x, :number, :integer
+    end
+  end
+
+  @tag timeout: 60000
+  property "good string to integer" do
+    for_all x in int do
+      assert_distilled ^x, to_string(x), :string, :integer
+    end
+  end
+
+  @tag timeout: 60000
+  property "bad string to integer" do
+    for_all x in unicode_binary do
+      implies not is_string_int(x) do
+        assert_distill_error {:distillation_error, {:string, :integer}},
+          x, :string, :integer
+      end
+    end
+  end
+
+  @tag timeout: 60000
+  property "good binary to integer" do
+    for_all x in int do
+      assert_distilled ^x, to_string(x), :binary, :integer
+    end
+  end
+
+  @tag timeout: 60000
+  property "bad binary to integer" do
+    for_all x in binary do
+      implies not is_string_int(x) do
+        assert_distill_error {:distillation_error, {:binary, :integer}},
+          x, :binary, :integer
+      end
+    end
+  end
+
+  test "convert to allowed integer" do
+    assert_distilled 42, "42", :string, :integer, allowed: [42, 33]
+    assert_distilled 33, 33.33, :float, :integer, allowed: [42, 33]
+    assert_distill_error {:value_not_allowed, :integer},
+      "77", :string, :integer, allowed: [42, 33]
+  end
+
+  test "convert to range-limited and allowed integer" do
+    assert_distilled 7, "7", :string, :integer,
+      min: 7, max: 9, allowed: [5, 6, 7, 9, 10]
+    assert_distill_error {:value_not_allowed, :integer},
+      "8", :string, :integer, min: 7, max: 9, allowed: [5, 6, 7, 9, 10]
+    assert_distill_error {:bad_value, {:integer, :too_small}},
+      "5", :string, :integer, min: 7, max: 9, allowed: [5, 6, 7, 9, 10]
+    assert_distill_error {:bad_value, {:integer, :too_big}},
+      "10", :string, :integer, min: 7, max: 9, allowed: [5, 6, 7, 9, 10]
+  end
+
+
+  defp is_string_int(str) do
+    try do
+      is_binary(String.to_integer(str))
+    rescue
+      ArgumentError -> false
+    end
+  end
+
 end

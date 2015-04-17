@@ -32,4 +32,28 @@ defmodule Extract.BasicTypes.BooleanTest do
     end
   end
 
+  test "convert to boolean" do
+    assert_distill_error {:undefined_value, :boolean},
+      nil, :undefined, :boolean
+    assert_distilled nil, nil, :undefined, :boolean, optional: true
+    assert_distilled false, :false, :atom, :boolean
+    assert_distill_error {:distillation_error, {:atom, :boolean}},
+      :foo, :atom, :boolean
+    assert_distilled true, true, :boolean, :boolean
+    assert_distill_error {:bad_receipt, {:integer, :boolean}},
+      42, :integer, :boolean
+    assert_distill_error {:bad_receipt, {:float, :boolean}},
+      3.14, :float, :boolean
+    assert_distill_error {:bad_receipt, {:number, :boolean}},
+      42, :number, :boolean
+    assert_distill_error {:bad_receipt, {:number, :boolean}},
+      3.14, :number, :boolean
+    assert_distilled true, "true", :string, :boolean
+    assert_distill_error {:distillation_error, {:string, :boolean}},
+      "foo", :string, :boolean
+    assert_distilled false, <<"false">>, :binary, :boolean
+    assert_distill_error {:distillation_error, {:binary, :boolean}},
+      <<"bar">>, :binary, :boolean
+  end
+
 end

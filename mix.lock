@@ -1,2 +1,2 @@
-%{"excheck": {:git, "git://github.com/sylane/excheck.git", "14f1ff2a28ebc0c38336c1be117139b6fd7945f1", [branch: "keep_exunit_error"]},
+%{"excheck": {:git, "git://github.com/sylane/excheck.git", "10d58d6984a3c6630b2a9e6a13c1190ed30c2980", [branch: "redefine_atom"]},
   "triq": {:git, "git://github.com/krestenkrab/triq.git", "2fe1529bc1460e0a8cd356ef7a8fda9e43120445", []}}
