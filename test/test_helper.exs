@@ -19,7 +19,7 @@ defmodule TestHelper do
 
   defmacro basic_any() do
     quote do
-      oneof([int, real, bool, atom, nil])
+      oneof([int, real, bool, atom])
     end
   end
 
@@ -41,21 +41,19 @@ defmodule TestHelper do
         fmt = unquote(fmt)
         opts = unquote(opts)
         expect_result({:ok, unquote(exp)},
-          Extract.BasicTypes.validate(static: val, static: fmt, attribute_kw: opts))
-        expect_result({:ok, unquote(exp)},
           Extract.BasicTypes.validate(static: val, static: fmt, static_kw: opts))
+        # expect_result({:ok, unquote(exp)},
+        #   Extract.BasicTypes.validate(dynamic: val, static: fmt, static_kw: opts))
         expect_result({:ok, unquote(exp)},
-          Extract.BasicTypes.validate(dynamic: val, static: fmt, attribute_kw: opts))
-        expect_result({:ok, unquote(exp)},
-          Extract.BasicTypes.validate(static: val, dynamic: fmt, static_kw: opts))
-        expect_result({:ok, unquote(exp)},
-          Extract.BasicTypes.validate(dynamic: val, dynamic: fmt, attribute_kw: opts))
+          Extract.BasicTypes.validate(static: val, dynamic: fmt, attribute_kw: opts))
+        # expect_result({:ok, unquote(exp)},
+        #   Extract.BasicTypes.validate(dynamic: val, dynamic: fmt, attribute_kw: opts))
+        # expect_result(unquote(exp),
+        #   Extract.BasicTypes.validate!(static: val, static: fmt, attribute_kw: opts))
         expect_result(unquote(exp),
-          Extract.BasicTypes.validate!(static: val, static: fmt, attribute_kw: opts))
-        expect_result(unquote(exp),
-          Extract.BasicTypes.validate!(dynamic: val, static: fmt, static_kw: opts))
-        expect_result(unquote(exp),
-          Extract.BasicTypes.validate!(static: val, dynamic: fmt, attribute_kw: opts))
+          Extract.BasicTypes.validate!(dynamic: val, static: fmt, attribute_kw: opts))
+        # expect_result(unquote(exp),
+        #   Extract.BasicTypes.validate!(static: val, dynamic: fmt, static_kw: opts))
         expect_result(unquote(exp),
           Extract.BasicTypes.validate!(dynamic: val, dynamic: fmt, static_kw: opts))
         true
@@ -75,18 +73,18 @@ defmodule TestHelper do
         opts = unquote(opts)
         expect_result({:error, unquote(exp)},
           Extract.BasicTypes.validate(static: val, static: fmt, static_kw: opts))
+        # expect_result({:error, unquote(exp)},
+        #   Extract.BasicTypes.validate(dynamic: val, static: fmt, static_kw: opts))
         expect_result({:error, unquote(exp)},
-          Extract.BasicTypes.validate(dynamic: val, static: fmt, attribute_kw: opts))
-        expect_result({:error, unquote(exp)},
-          Extract.BasicTypes.validate(static: val, dynamic: fmt, static_kw: opts))
-        expect_result({:error, unquote(exp)},
-          Extract.BasicTypes.validate(dynamic: val, dynamic: fmt, attribute_kw: opts))
+          Extract.BasicTypes.validate(static: val, dynamic: fmt, attribute_kw: opts))
+        # expect_result({:error, unquote(exp)},
+        #   Extract.BasicTypes.validate(dynamic: val, dynamic: fmt, attribute_kw: opts))
+        # expect_raise(unquote(exp),
+        #   Extract.BasicTypes.validate!(static: val, static: fmt, attribute_kw: opts))
         expect_raise(unquote(exp),
-          Extract.BasicTypes.validate!(static: val, static: fmt, attribute_kw: opts))
-        expect_raise(unquote(exp),
-          Extract.BasicTypes.validate!(dynamic: val, static: fmt, static_kw: opts))
-        expect_raise(unquote(exp),
-          Extract.BasicTypes.validate!(static: val, dynamic: fmt, attribute_kw: opts))
+          Extract.BasicTypes.validate!(dynamic: val, static: fmt, attribute_kw: opts))
+        # expect_raise(unquote(exp),
+        #   Extract.BasicTypes.validate!(static: val, dynamic: fmt, static_kw: opts))
         expect_raise(unquote(exp),
           Extract.BasicTypes.validate!(dynamic: val, dynamic: fmt, static_kw: opts))
         true
@@ -107,34 +105,34 @@ defmodule TestHelper do
         opts = unquote(opts)
         expect_result({:ok, unquote(exp)},
           Extract.BasicTypes.distill(static: val, static: from, static: to, static_kw: opts))
-        expect_result({:ok, unquote(exp)},
-          Extract.BasicTypes.distill(dynamic: val, static: from, static: to, static_kw: opts))
+        # expect_result({:ok, unquote(exp)},
+        #   Extract.BasicTypes.distill(dynamic: val, static: from, static: to, static_kw: opts))
         expect_result({:ok, unquote(exp)},
           Extract.BasicTypes.distill(static: val, dynamic: from, static: to, static_kw: opts))
+        # expect_result({:ok, unquote(exp)},
+        #   Extract.BasicTypes.distill(static: val, static: from, dynamic: to, static_kw: opts))
         expect_result({:ok, unquote(exp)},
-          Extract.BasicTypes.distill(static: val, static: from, dynamic: to, static_kw: opts))
+          Extract.BasicTypes.distill(dynamic: val, dynamic: from, static: to, attribute_kw: opts))
+        # expect_result({:ok, unquote(exp)},
+        #   Extract.BasicTypes.distill(static: val, dynamic: from, dynamic: to, attribute_kw: opts))
         expect_result({:ok, unquote(exp)},
-          Extract.BasicTypes.distill(dynamic: val, dynamic: from, static: to, static_kw: opts))
-        expect_result({:ok, unquote(exp)},
-          Extract.BasicTypes.distill(static: val, dynamic: from, dynamic: to, static_kw: opts))
-        expect_result({:ok, unquote(exp)},
-          Extract.BasicTypes.distill(dynamic: val, static: from, dynamic: to, static_kw: opts))
-        expect_result({:ok, unquote(exp)},
-          Extract.BasicTypes.distill(dynamic: val, dynamic: from, dynamic: to, static_kw: opts))
+          Extract.BasicTypes.distill(dynamic: val, static: from, dynamic: to, attribute_kw: opts))
+        # expect_result({:ok, unquote(exp)},
+        #   Extract.BasicTypes.distill(dynamic: val, dynamic: from, dynamic: to, attribute_kw: opts))
+        # expect_result(unquote(exp),
+        #   Extract.BasicTypes.distill!(static: val, static: from, static: to, attribute_kw: opts))
         expect_result(unquote(exp),
-          Extract.BasicTypes.distill!(static: val, static: from, static: to, static_kw: opts))
+          Extract.BasicTypes.distill!(dynamic: val, static: from, static: to, attribute_kw: opts))
+        # expect_result(unquote(exp),
+        #   Extract.BasicTypes.distill!(static: val, dynamic: from, static: to, attribute_kw: opts))
         expect_result(unquote(exp),
-          Extract.BasicTypes.distill!(dynamic: val, static: from, static: to, static_kw: opts))
-        expect_result(unquote(exp),
-          Extract.BasicTypes.distill!(static: val, dynamic: from, static: to, static_kw: opts))
-        expect_result(unquote(exp),
-          Extract.BasicTypes.distill!(static: val, static: from, dynamic: to, static_kw: opts))
-        expect_result(unquote(exp),
-          Extract.BasicTypes.distill!(dynamic: val, dynamic: from, static: to, static_kw: opts))
+          Extract.BasicTypes.distill!(static: val, static: from, dynamic: to, attribute_kw: opts))
+        # expect_result(unquote(exp),
+        #   Extract.BasicTypes.distill!(dynamic: val, dynamic: from, static: to, static_kw: opts))
         expect_result(unquote(exp),
           Extract.BasicTypes.distill!(static: val, dynamic: from, dynamic: to, static_kw: opts))
-        expect_result(unquote(exp),
-          Extract.BasicTypes.distill!(dynamic: val, static: from, dynamic: to, static_kw: opts))
+        # expect_result(unquote(exp),
+        #   Extract.BasicTypes.distill!(dynamic: val, static: from, dynamic: to, static_kw: opts))
         expect_result(unquote(exp),
           Extract.BasicTypes.distill!(dynamic: val, dynamic: from, dynamic: to, static_kw: opts))
         true
@@ -155,34 +153,34 @@ defmodule TestHelper do
         opts = unquote(opts)
         expect_result({:error, unquote(exp)},
           Extract.BasicTypes.distill(static: val, static: from, static: to, static_kw: opts))
-        expect_result({:error, unquote(exp)},
-          Extract.BasicTypes.distill(dynamic: val, static: from, static: to, static_kw: opts))
+        # expect_result({:error, unquote(exp)},
+        #   Extract.BasicTypes.distill(dynamic: val, static: from, static: to, static_kw: opts))
         expect_result({:error, unquote(exp)},
           Extract.BasicTypes.distill(static: val, dynamic: from, static: to, static_kw: opts))
+        # expect_result({:error, unquote(exp)},
+        #   Extract.BasicTypes.distill(static: val, static: from, dynamic: to, static_kw: opts))
         expect_result({:error, unquote(exp)},
-          Extract.BasicTypes.distill(static: val, static: from, dynamic: to, static_kw: opts))
+          Extract.BasicTypes.distill(dynamic: val, dynamic: from, static: to, attribute_kw: opts))
+        # expect_result({:error, unquote(exp)},
+        #   Extract.BasicTypes.distill(static: val, dynamic: from, dynamic: to, attribute_kw: opts))
         expect_result({:error, unquote(exp)},
-          Extract.BasicTypes.distill(dynamic: val, dynamic: from, static: to, static_kw: opts))
-        expect_result({:error, unquote(exp)},
-          Extract.BasicTypes.distill(static: val, dynamic: from, dynamic: to, static_kw: opts))
-        expect_result({:error, unquote(exp)},
-          Extract.BasicTypes.distill(dynamic: val, static: from, dynamic: to, static_kw: opts))
-        expect_result({:error, unquote(exp)},
-          Extract.BasicTypes.distill(dynamic: val, dynamic: from, dynamic: to, static_kw: opts))
+          Extract.BasicTypes.distill(dynamic: val, static: from, dynamic: to, attribute_kw: opts))
+        # expect_result({:error, unquote(exp)},
+        #   Extract.BasicTypes.distill(dynamic: val, dynamic: from, dynamic: to, attribute_kw: opts))
+        # expect_raise(unquote(exp),
+        #   Extract.BasicTypes.distill!(static: val, static: from, static: to, attribute_kw: opts))
         expect_raise(unquote(exp),
-          Extract.BasicTypes.distill!(static: val, static: from, static: to, static_kw: opts))
+          Extract.BasicTypes.distill!(dynamic: val, static: from, static: to, attribute_kw: opts))
+        # expect_raise(unquote(exp),
+        #   Extract.BasicTypes.distill!(static: val, dynamic: from, static: to, attribute_kw: opts))
         expect_raise(unquote(exp),
-          Extract.BasicTypes.distill!(dynamic: val, static: from, static: to, static_kw: opts))
-        expect_raise(unquote(exp),
-          Extract.BasicTypes.distill!(static: val, dynamic: from, static: to, static_kw: opts))
-        expect_raise(unquote(exp),
-          Extract.BasicTypes.distill!(static: val, static: from, dynamic: to, static_kw: opts))
-        expect_raise(unquote(exp),
-          Extract.BasicTypes.distill!(dynamic: val, dynamic: from, static: to, static_kw: opts))
+          Extract.BasicTypes.distill!(static: val, static: from, dynamic: to, attribute_kw: opts))
+        # expect_raise(unquote(exp),
+        #   Extract.BasicTypes.distill!(dynamic: val, dynamic: from, static: to, static_kw: opts))
         expect_raise(unquote(exp),
           Extract.BasicTypes.distill!(static: val, dynamic: from, dynamic: to, static_kw: opts))
-        expect_raise(unquote(exp),
-          Extract.BasicTypes.distill!(dynamic: val, static: from, dynamic: to, static_kw: opts))
+        # expect_raise(unquote(exp),
+        #   Extract.BasicTypes.distill!(dynamic: val, static: from, dynamic: to, static_kw: opts))
         expect_raise(unquote(exp),
           Extract.BasicTypes.distill!(dynamic: val, dynamic: from, dynamic: to, static_kw: opts))
         true
