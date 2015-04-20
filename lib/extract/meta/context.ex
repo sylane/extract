@@ -6,8 +6,7 @@ defmodule Extract.Meta.Context do
   alias Extract.Meta.Error
 
 
-  defstruct [debug: nil,
-             type_info: [],
+  defstruct [type_info: [],
              missing_value: nil,
              undefined_value: nil,
              encapsulated: false,
@@ -21,12 +20,14 @@ defmodule Extract.Meta.Context do
   def new(kv \\ []) do
     env = Keyword.get(kv, :env, nil)
     caller = Keyword.get(kv, :caller, nil)
-    %Context{debug: debug_context(env, caller),
-             macro_env: env, caller_env: caller}
+    %Context{macro_env: env, caller_env: caller}
   end
 
 
-  def debug(%Context{debug: result}), do: result
+  def debug(ast, %Context{macro_env: env, caller_env: caller}, opts \\ []) do
+    Extract.Meta.Debug.ast(ast, [{:env, env}, {:caller, caller} | opts])
+  end
+
 
   def push_type_info(%Context{type_info: type_info} = ctx, tag, desc)
    when is_atom(tag) and is_binary(desc) do
@@ -104,46 +105,6 @@ defmodule Extract.Meta.Context do
   def eval_quoted(%Context{caller_env: env}, ast, bindings) do
     Code.eval_quoted(ast, bindings, env)
   end
-
-
-  defp debug_context(nil, nil), do: "Unknown Macro"
-
-  defp debug_context(env, nil), do: call_from_env(env)
-
-  defp debug_context(nil, caller) do
-    "Unknown Macro used in #{call_from_env caller}"
-  end
-
-  defp debug_context(env, caller) do
-    "#{call_from_env env} used in #{call_from_env caller}"
-  end
-
-
-  defp call_from_env(env) do
-    case {env.context_modules, env.function, env.line} do
-      {[mod | _], {fun, arity}, line} when is_integer(line) and line > 0 ->
-        "#{strip_module mod}.#{fun}/#{arity}:#{line}"
-      {_, {fun, arity}, line} when is_integer(line) and line > 0 ->
-        "#{fun}/#{arity}:#{line}"
-      {[mod | _], {fun, arity}, _} ->
-        "#{strip_module mod}.#{fun}/#{arity}"
-      {_, {fun, arity}, _} ->
-        "#{fun}/#{arity}"
-      {[mod | _], _, _} ->
-        "Unknown #{mod} function"
-      {_, _, _} ->
-        "Unknown function"
-    end
-  end
-
-
-  defp strip_module(mod) when is_atom(mod) do
-    strip_module(Atom.to_string(mod))
-  end
-
-  defp strip_module("Elixir." <> mod), do: mod
-
-  defp strip_module(mod), do: mod
 
 
   defp merge_any(_ctx, contexts, field) do

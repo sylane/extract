@@ -1,7 +1,7 @@
 defmodule Test do
 
   use Extract.BasicTypes
-  alias Extract.BasicTypes
+  # alias Extract.BasicTypes
 
 
   @allowed_list [3, 4, 5]
@@ -12,9 +12,16 @@ defmodule Test do
   #   Extract.Types.distill value, from, to
   # end
 
-  def test(value, from) do
-    BasicTypes.distill value, from, :string
-  end
+  # def test() do
+  #   v = 3.14
+  #   f = :float
+  #   t = :integer
+  #   BasicTypes._distill(v, f, t)
+  # end
+
+  # def test() do
+  #   Extract.validate!(3, :integer)
+  # end
 
   # def test(value, format) do
   #   BasicTypes.validate value, format

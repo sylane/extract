@@ -8,11 +8,12 @@ defmodule Extract.Pipeline do
 
 
   defmacro __using__(_args) do
-    quote location: :keep do
+    _ast = quote location: :keep do
       import Extract.Pipeline, only: :macros
       require Extract.Meta.Context
       require Extract.Meta.Error
     end
+    # Extract.Meta.Debug.ast(_ast, env: __ENV__, caller: __CALLER__)
   end
 
 
@@ -49,8 +50,7 @@ defmodule Extract.Pipeline do
       true ->
         quote do
           ast = unquote(pipe_ast)
-          debug_info = Context.debug(unquote(ctx)) #FIXME: not duplicating
-          Extract.Meta.Debug.ast(ast, info: debug_info)
+          Extract.Meta.Context.debug(ast, unquote(ctx))
         end
     end
   end
@@ -60,6 +60,9 @@ defmodule Extract.Pipeline do
     _pipeline(ast, ctx, body)
   end
 
+  defmacro pipeline(ast, ctx, body) do
+    throw {:unexpected, ast, ctx, body}
+  end
 
   defmacro condition(ast, ctx, {f, c, a}, body \\ []) do
     ast_var = Macro.var(:original_ast, __MODULE__)
@@ -102,7 +105,15 @@ defmodule Extract.Pipeline do
           # FIXME: what it a :else block raises a compile-time exception ?
           {:ok, {else_ast, else_ctx}} = else_branch
           sub_ctxs = for {_, {:ok, {_, c}}} <- choices, do: c
-          ctx = Context.merge(unquote(ctx_var), [else_ctx] ++ sub_ctxs)
+          # If there is some errors, be sure to update the context
+          may_raise = (for {_, {:error, _}} <- choices, do: true) != []
+          ctx = if may_raise do
+            unquote(ctx_var)
+              |> Context.merge([else_ctx] ++ sub_ctxs)
+              |> Context.may_raise
+          else
+            unquote(ctx_var) |> Context.merge([else_ctx] ++ sub_ctxs)
+          end
           choices_ast = for {f, choice} <- choices do
             case choice do
               {:ok, {ast, _}} ->

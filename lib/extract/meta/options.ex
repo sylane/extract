@@ -59,7 +59,7 @@ defmodule Extract.Meta.Options do
         {:error, {{:bad_option, {name, value}},
                   "invalid option #{name}: #{inspect value}"}}
       true ->
-        case Enum.member?(allowed, name) do
+        case allowed?(allowed, name) do
           true -> _validate(ctx, opts, allowed)
           false ->
             {:error, {{:option_not_allowed, name},
@@ -67,6 +67,20 @@ defmodule Extract.Meta.Options do
         end
     end
   end
+
+
+  defp allowed?(allowed, :allow_undefined) do
+    Enum.member?(allowed, :optional) or Enum.member?(allowed, :allow_undefined)
+  end
+
+  defp allowed?(allowed, :allow_missing) do
+    Enum.member?(allowed, :optional) or Enum.member?(allowed, :allow_missing)
+  end
+
+  defp allowed?(allowed, name) do
+    Enum.member?(allowed, name)
+  end
+
 
   defp valid?(:optional, flag) when is_boolean(flag), do: true
   defp valid?(:allow_undefined, flag) when is_boolean(flag), do: true

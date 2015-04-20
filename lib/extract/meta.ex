@@ -25,6 +25,16 @@ defmodule Extract.Meta do
   end
 
 
+  def assert_undefined_body(ast, ctx, body) do
+    case body do
+      [] -> {ast, ctx}
+      _other ->
+        #FIXME: better error message
+        Error.comptime(ctx, error(:no_body_expected, "no body expected"))
+    end
+  end
+
+
   def allowed_value(ast, ctx, opts) do
     undefined_value = Context.undefined_value(ctx)
     missing_value = Context.missing_value(ctx)
@@ -33,30 +43,31 @@ defmodule Extract.Meta do
     may_be_missing = Context.may_be_missing?(ctx)
     allow_undefined = Options.get(ctx, opts, :allow_undefined, false)
     may_be_undefined = Context.may_be_undefined?(ctx)
+    is_comptime = comptime_ast?(ast)
     case Options.fetch(ctx, opts, :allowed) do
       :error -> {ast, ctx}
       {:ok, allowed} ->
         case {encapsulated, allow_missing, may_be_missing,
-              allow_undefined, may_be_undefined, ast} do
-          {false, _, _, true, true, ^undefined_value} ->
+              allow_undefined, may_be_undefined, is_comptime, ast} do
+          {false, _, _, true, true, true, ^undefined_value} ->
             # undefined at compile-time but it is allowed
             {ast, ctx}
-          {false, _, _, false, true, ^undefined_value} ->
+          {false, _, _, false, true, true, ^undefined_value} ->
             # undefined at compile-time and it is forbidden
             Error.comptime(ctx, value_not_allowed(undefined_value))
-          {false, true, true, _, _, ^missing_value} ->
+          {false, true, true, _, _, true, ^missing_value} ->
             # missing at compile-time but it is allowed
             {ast, ctx}
-          {false, false, true, _, _, ^missing_value} ->
+          {false, false, true, _, _, true, ^missing_value} ->
             # missing at compile-time and it is forbidden
             Error.comptime(ctx, value_not_allowed(missing_value))
-          {false, _, _, _, _, value} when is_comptime(value) ->
+          {false, _, _, _, _, true, value} ->
             # defined at compile time
             comptime_check_allowed(ctx, value, allowed)
-          {false, _, false, _, false, ast} ->
+          {false, _, false, _, false, _, ast} ->
             # cannot be undefined or missing
             runtime_check_allowed(ctx, ast, allowed)
-          {false, false, true, true, true, ast} ->
+          {false, false, true, true, true, _, ast} ->
             # may be missing and forbidden or undefined and allowed
             val_var = Macro.var(:value, __MODULE__)
             {chk_ast, chk_ctx} = runtime_check_allowed(ctx, val_var, allowed)
@@ -70,7 +81,7 @@ defmodule Extract.Meta do
               end
             end
             {ast, ctx}
-          {false, true, true, false, true, ast} ->
+          {false, true, true, false, true, _, ast} ->
             # may be missing and allowed or undefined and forbidden
             val_var = Macro.var(:value, __MODULE__)
             {chk_ast, chk_ctx} = runtime_check_allowed(ctx, val_var, allowed)
@@ -84,7 +95,7 @@ defmodule Extract.Meta do
               end
             end
             {ast, ctx}
-          {false, false, true, false, true, ast} ->
+          {false, false, true, false, true, _, ast} ->
             # may be missing or undefined both forbidden
             val_var = Macro.var(:value, __MODULE__)
             {chk_ast, chk_ctx} = runtime_check_allowed(ctx, val_var, allowed)
@@ -98,7 +109,7 @@ defmodule Extract.Meta do
               end
             end
             {ast, ctx}
-          {false, true, true, true, true, ast} ->
+          {false, true, true, true, true, _, ast} ->
             # may be missing or undefined both allowed
             val_var = Macro.var(:value, __MODULE__)
             {chk_ast, chk_ctx} = runtime_check_allowed(ctx, val_var, allowed)
@@ -111,7 +122,7 @@ defmodule Extract.Meta do
               end
             end
             {ast, ctx}
-          {false, true, true, _, false, ast} ->
+          {false, true, true, _, false, _, ast} ->
             # may be missing but it is allowed
             val_var = Macro.var(:value, __MODULE__)
             {chk_ast, chk_ctx} = runtime_check_allowed(ctx, val_var, allowed)
@@ -123,7 +134,7 @@ defmodule Extract.Meta do
               end
             end
             {ast, ctx}
-          {false, false, true, _, false, ast} ->
+          {false, false, true, _, false, _, ast} ->
             # may be missing and it is forbidden
             val_var = Macro.var(:value, __MODULE__)
             {chk_ast, chk_ctx} = runtime_check_allowed(ctx, val_var, allowed)
@@ -136,7 +147,7 @@ defmodule Extract.Meta do
               end
             end
             {ast, ctx}
-          {false, _, false, true, true, ast} ->
+          {false, _, false, true, true, _, ast} ->
             # may be undefined but it is allowed
             val_var = Macro.var(:value, __MODULE__)
             {chk_ast, chk_ctx} = runtime_check_allowed(ctx, val_var, allowed)
@@ -148,7 +159,7 @@ defmodule Extract.Meta do
               end
             end
             {ast, ctx}
-          {false, _, false, false, true, ast} ->
+          {false, _, false, false, true, _, ast} ->
             # may be undefined and it is forbidden
             val_var = Macro.var(:value, __MODULE__)
             {chk_ast, chk_ctx} = runtime_check_allowed(ctx, val_var, allowed)
@@ -175,6 +186,7 @@ defmodule Extract.Meta do
     allow_undefined = Options.get(ctx, opts, :allow_undefined, false)
     may_be_undefined = Context.may_be_undefined?(ctx)
     default = Options.fetch(ctx, opts, :default)
+    is_comptime = comptime_ast?(ast)
     do_ctx = ctx
       |> Context.encapsulated(false)
       |> Context.may_be_missing(false)
@@ -184,37 +196,30 @@ defmodule Extract.Meta do
       |> Context.encapsulated(false)
       |> Context.may_be_undefined(false)
       |> Context.may_be_missing(false)
-    case {encapsulated, allow_missing, may_be_missing,
-          allow_undefined, may_be_undefined, default, ast} do
-      {false, _, _, true, true, :error, ^undefined_value} ->
+    case {encapsulated, allow_missing, may_be_missing, allow_undefined,
+          may_be_undefined, default, is_comptime, ast} do
+      {false, _, _, true, true, :error, true, ^undefined_value} ->
         # undefined at compile-time without default value but it is allowed
         statments.(:else, undefined_value, else_ctx)
-      {false, _, _, false, true, :error, ^undefined_value} ->
+      {false, _, _, false, true, :error, true, ^undefined_value} ->
         # undefined at compile-time without default value and it is forbidden
         Error.comptime(ctx, undefined_value)
-      {false, _, _, _, true, {:ok, default}, ^undefined_value} ->
+      {false, _, _, _, true, {:ok, default}, true, ^undefined_value} ->
         # undefined at compile-time with default value
         statments.(:else, default, default_ctx)
-      {false, true, true, _, _, :error, ^missing_value} ->
+      {false, true, true, _, _, :error, true, ^missing_value} ->
         # missing at compile-time without default value but it is allowed
         statments.(:else, missing_value, else_ctx)
-      {false, false, true, _, _, :error, ^missing_value} ->
+      {false, false, true, _, _, :error, true, ^missing_value} ->
         # missing at compile-time without default value and it is forbidden
         Error.comptime(ctx, missing_value)
-      {false, _, true, _, _, {:ok, default}, ^missing_value} ->
+      {false, _, true, _, _, {:ok, default}, true, ^missing_value} ->
         # missing at compile-time with default value
         statments.(:else, default, default_ctx)
-      {false, _, _, _, _, _, value} when is_comptime(value) ->
+      {false, _, _, _, _, _, true, value} ->
         # defined at compile time
         statments.(:do, value, do_ctx)
-      {false, _, _, _, _, _, ast} when is_list(ast) ->
-        # list cannot be undefined or missing
-        statments.(:do, ast, do_ctx)
-      {false, _, _, _, _, _, {type, _, _} = ast}
-       when type == :{} or type == :%{} ->
-        # tuples or maps cannot be undefined or missing
-        statments.(:do, ast, do_ctx)
-      {false, _, true, _, true, {:ok, default}, ast} ->
+      {false, _, true, _, true, {:ok, default}, _, ast} ->
         # may be missing or undefined but there is a default value
         val_var = Macro.var(:value, __MODULE__)
         {do_ast, do_ctx} = statments.(:do, val_var, do_ctx)
@@ -228,7 +233,7 @@ defmodule Extract.Meta do
           end
         end
         {ast, result_ctx}
-      {false, false, true, true, true, :error, ast} ->
+      {false, false, true, true, true, :error, _, ast} ->
         # may be missing and forbidden or undefined and allowed
         val_var = Macro.var(:value, __MODULE__)
         {do_ast, do_ctx} = statments.(:do, val_var, do_ctx)
@@ -243,7 +248,7 @@ defmodule Extract.Meta do
           end
         end
         {ast, ctx}
-      {false, true, true, false, true, :error, ast} ->
+      {false, true, true, false, true, :error, _, ast} ->
         # may be missing and allowed or undefined and forbidden
         val_var = Macro.var(:value, __MODULE__)
         {do_ast, do_ctx} = statments.(:do, val_var, do_ctx)
@@ -258,7 +263,7 @@ defmodule Extract.Meta do
           end
         end
         {ast, ctx}
-      {false, false, true, false, true, :error, ast} ->
+      {false, false, true, false, true, :error, _, ast} ->
         # may be missing or undefined both forbidden
         val_var = Macro.var(:value, __MODULE__)
         {do_ast, do_ctx} = statments.(:do, val_var, do_ctx)
@@ -273,7 +278,7 @@ defmodule Extract.Meta do
           end
         end
         {ast, ctx}
-      {false, true, true, true, true, :error, ast} ->
+      {false, true, true, true, true, :error, _, ast} ->
         # may be missing or undefined both allowed without default value
         val_var = Macro.var(:value, __MODULE__)
         {do_ast, do_ctx} = statments.(:do, val_var, do_ctx)
@@ -288,7 +293,7 @@ defmodule Extract.Meta do
           end
         end
         {ast, ctx}
-      {false, true, true, _, false, :error, ast} ->
+      {false, true, true, _, false, :error, _, ast} ->
         # may be missing without default value but it is allowed
         val_var = Macro.var(:value, __MODULE__)
         {do_ast, do_ctx} = statments.(:do, val_var, do_ctx)
@@ -301,7 +306,7 @@ defmodule Extract.Meta do
           end
         end
         {ast, ctx}
-      {false, _, true, _, false, {:ok, default}, ast} ->
+      {false, _, true, _, false, {:ok, default}, _, ast} ->
         # may be missing with default value
         val_var = Macro.var(:value, __MODULE__)
         {do_ast, do_ctx} = statments.(:do, val_var, do_ctx)
@@ -314,7 +319,7 @@ defmodule Extract.Meta do
           end
         end
         {ast, ctx}
-      {false, false, true, _, false, :error, ast} ->
+      {false, false, true, _, false, :error, _, ast} ->
         # may be missing without default value and it is forbidden
         val_var = Macro.var(:value, __MODULE__)
         {do_ast, do_ctx} = statments.(:do, val_var, do_ctx)
@@ -327,7 +332,7 @@ defmodule Extract.Meta do
           end
         end
         {ast, ctx}
-      {false, _, false, true, true, :error, ast} ->
+      {false, _, false, true, true, :error, _, ast} ->
         # may be undefined without default value but it is allowed
         val_var = Macro.var(:value, __MODULE__)
         {do_ast, do_ctx} = statments.(:do, val_var, do_ctx)
@@ -340,7 +345,7 @@ defmodule Extract.Meta do
           end
         end
         {ast, ctx}
-      {false, _, false, _, true, {:ok, default}, ast} ->
+      {false, _, false, _, true, {:ok, default}, _, ast} ->
         # may be undefined with default value
         val_var = Macro.var(:value, __MODULE__)
         {do_ast, do_ctx} = statments.(:do, val_var, do_ctx)
@@ -353,7 +358,7 @@ defmodule Extract.Meta do
           end
         end
         {ast, ctx}
-      {false, _, false, false, true, :error, ast} ->
+      {false, _, false, false, true, :error, _, ast} ->
         # may be undefined without default value and it is forbidden
         val_var = Macro.var(:value, __MODULE__)
         {do_ast, do_ctx} = statments.(:do, val_var, do_ctx)
@@ -366,28 +371,28 @@ defmodule Extract.Meta do
           end
         end
         {ast, ctx}
-      {true, _, _, true, true, :error, :undefined} ->
+      {true, _, _, true, true, :error, true, :undefined} ->
         # undefined at compile-time without default value but it is allowed
         statments.(:else, undefined_value, else_ctx)
-      {true, _, _, false, true, :error, :undefined} ->
+      {true, _, _, false, true, :error, true, :undefined} ->
         # undefined at compile-time without default value and it is forbidden
         Error.comptime(ctx, undefined_value)
-      {true, _, _, _, true, {:ok, default}, :undefined} ->
+      {true, _, _, _, true, {:ok, default}, true, :undefined} ->
         # undefined at compile-time with default value
         statments.(:else, default, default_ctx)
-      {true, true, true, _, _, :error, :missing} ->
+      {true, true, true, _, _, :error, true, :missing} ->
         # missing at compile-time without default value but it is allowed
         statments.(:else, missing_value, else_ctx)
-      {true, false, true, _, _, :error, :missing} ->
+      {true, false, true, _, _, :error, true, :missing} ->
         # missing at compile-time without default value and it is forbidden
         Error.comptime(ctx, missing_value)
-      {true, _, true, _, _, {:ok, default}, :missing} ->
+      {true, _, true, _, _, {:ok, default}, true, :missing} ->
         # missing at compile-time with default value
         statments.(:else, default, default_ctx)
-      {true, _, _, _, _, _, {:value, value}} ->
+      {true, _, _, _, _, _, true, {:value, value}} ->
         # defined at compile time
         statments.(:do, value, do_ctx)
-      {true, _, false, _, false, _, ast} ->
+      {true, _, false, _, false, _, _, ast} ->
         # cannot be undefined or missing, just unpack the value
         val_var = Macro.var(:value, __MODULE__)
         {do_ast, do_ctx} = statments.(:do, val_var, do_ctx)
@@ -395,7 +400,7 @@ defmodule Extract.Meta do
           {:value, unquote(val_var)} = unquote(ast)
           unquote(do_ast)
         end
-      {true, _, true, _, true, {:ok, default}, ast} ->
+      {true, _, true, _, true, {:ok, default}, _, ast} ->
         # may be missing or undefined but there is a default value
         val_var = Macro.var(:value, __MODULE__)
         {do_ast, do_ctx} = statments.(:do, val_var, do_ctx)
@@ -409,7 +414,7 @@ defmodule Extract.Meta do
           end
         end
         {ast, ctx}
-      {true, false, true, true, true, :error, ast} ->
+      {true, false, true, true, true, :error, _, ast} ->
         # may be missing and forbidden or undefined and allowed
         val_var = Macro.var(:value, __MODULE__)
         {do_ast, do_ctx} = statments.(:do, val_var, do_ctx)
@@ -424,7 +429,7 @@ defmodule Extract.Meta do
           end
         end
         {ast, ctx}
-      {true, true, true, false, true, :error, ast} ->
+      {true, true, true, false, true, :error, _, ast} ->
         # may be missing and allowed or undefined and forbidden
         val_var = Macro.var(:value, __MODULE__)
         {do_ast, do_ctx} = statments.(:do, val_var, do_ctx)
@@ -439,7 +444,7 @@ defmodule Extract.Meta do
           end
         end
         {ast, ctx}
-      {true, false, true, false, true, :error, ast} ->
+      {true, false, true, false, true, :error, _, ast} ->
         # may be missing or undefined both forbidden
         val_var = Macro.var(:value, __MODULE__)
         {do_ast, do_ctx} = statments.(:do, val_var, do_ctx)
@@ -454,7 +459,7 @@ defmodule Extract.Meta do
           end
         end
         {ast, ctx}
-      {true, true, true, true, true, :error, ast} ->
+      {true, true, true, true, true, :error, _, ast} ->
         # may be missing or undefined both forbidden
         val_var = Macro.var(:value, __MODULE__)
         {do_ast, do_ctx} = statments.(:do, val_var, do_ctx)
@@ -469,7 +474,7 @@ defmodule Extract.Meta do
           end
         end
         {ast, ctx}
-      {true, true, true, _, false, :error, ast} ->
+      {true, true, true, _, false, :error, _, ast} ->
         # may be missing without default value but it is allowed
         val_var = Macro.var(:value, __MODULE__)
         {do_ast, do_ctx} = statments.(:do, val_var, do_ctx)
@@ -482,7 +487,7 @@ defmodule Extract.Meta do
           end
         end
         {ast, ctx}
-      {true, _, true, _, false, {:ok, default}, ast} ->
+      {true, _, true, _, false, {:ok, default}, _, ast} ->
         # may be missing with default value
         val_var = Macro.var(:value, __MODULE__)
         {do_ast, do_ctx} = statments.(:do, val_var, do_ctx)
@@ -495,7 +500,7 @@ defmodule Extract.Meta do
           end
         end
         {ast, ctx}
-      {true, false, true, _, false, :error, ast} ->
+      {true, false, true, _, false, :error, _, ast} ->
         # may be missing without default value and it is forbidden
         val_var = Macro.var(:value, __MODULE__)
         {do_ast, do_ctx} = statments.(:do, val_var, do_ctx)
@@ -508,7 +513,7 @@ defmodule Extract.Meta do
           end
         end
         {ast, ctx}
-      {true, _, false, true, true, :error, ast} ->
+      {true, _, false, true, true, :error, _, ast} ->
         # may be undefined without default value but it is allowed
         val_var = Macro.var(:value, __MODULE__)
         {do_ast, do_ctx} = statments.(:do, val_var, do_ctx)
@@ -521,7 +526,7 @@ defmodule Extract.Meta do
           end
         end
         {ast, ctx}
-      {true, _, false, _, true, {:ok, default}, ast} ->
+      {true, _, false, _, true, {:ok, default}, _, ast} ->
         # may be undefined with default value
         val_var = Macro.var(:value, __MODULE__)
         {do_ast, do_ctx} = statments.(:do, val_var, do_ctx)
@@ -534,7 +539,7 @@ defmodule Extract.Meta do
           end
         end
         {ast, ctx}
-      {true, _, false, false, true, :error, ast} ->
+      {true, _, false, false, true, :error, _, ast} ->
         # may be undefined without default value and it is forbidden
         val_var = Macro.var(:value, __MODULE__)
         {do_ast, do_ctx} = statments.(:do, val_var, do_ctx)
@@ -547,6 +552,14 @@ defmodule Extract.Meta do
           end
         end
         {ast, ctx}
+    end
+  end
+
+
+  def comptime?(ast, ctx, statments) do
+    case comptime_ast?(ast) do
+      true -> statments.(:do, ast, ctx)
+      false -> statments.(:else, ast, ctx)
     end
   end
 
@@ -633,6 +646,24 @@ defmodule Extract.Meta do
   end
 
 
+  def bad_format_error(_ast, ctx, format) do
+    case is_atom(format) do
+      true -> Error.comptime(ctx, bad_format(format))
+      false ->
+        {Error.runtime(ctx, bad_format(format)), Context.may_raise(ctx)}
+    end
+  end
+
+
+  def bad_receipt_error(_ast, ctx, from, to) do
+    case {is_atom(from), is_atom(to)} do
+      {true, true} -> Error.comptime(ctx, bad_receipt(from, to))
+      _ ->
+        {Error.runtime(ctx, bad_format(from, to)), Context.may_raise(ctx)}
+    end
+  end
+
+
   defp comptime_check_allowed(ctx, value, nil) do
     {value, ctx}
   end
@@ -694,5 +725,28 @@ defmodule Extract.Meta do
     Error.comptime(ctx, error({:bad_option, {:allowed, allowed}},
       "invalid 'allowed' option value: #{inspect allowed}"))
   end
+
+
+  defp comptime_ast?([]), do: true
+  defp comptime_ast?(ast) when is_atom(ast), do: true
+  defp comptime_ast?(ast) when is_number(ast), do: true
+  defp comptime_ast?(ast) when is_binary(ast), do: true
+  defp comptime_ast?([value | rem]) do
+    comptime_ast?(value) and comptime_ast?(rem)
+  end
+  defp comptime_ast?({:|, _, [a, b]}) do
+    comptime_ast?(a) and comptime_ast?(b)
+  end
+  defp comptime_ast?({key, val}) do
+    comptime_ast?(key) and comptime_ast?(val)
+  end
+  defp comptime_ast?({:{}, _, items}) when is_list(items) do
+    Enum.all?(for v <- items, do: comptime_ast?(v))
+  end
+  defp comptime_ast?({:%{}, _, items}) when is_list(items) do
+    Enum.all?(for v <- items, do: comptime_ast?(v))
+  end
+  defp comptime_ast?(_any), do: false
+
 
 end

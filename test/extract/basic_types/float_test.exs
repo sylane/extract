@@ -95,94 +95,94 @@ defmodule Extract.BasicTypes.FloatTest do
     end
   end
 
-  test "undefined to float" do
-    assert_distill_error {:undefined_value, :float}, nil, :undefined, :float
-    assert_distilled nil, nil, :undefined, :float, optional: true
-    assert_distilled nil, nil, :undefined, :float, allow_undefined: true
-    assert_distilled 3.14, nil, :undefined, :float, default: 3.14
-  end
+  # test "undefined to float" do
+  #   assert_distill_error {:undefined_value, :float}, nil, :undefined, :float
+  #   assert_distilled nil, nil, :undefined, :float, optional: true
+  #   assert_distilled nil, nil, :undefined, :float, allow_undefined: true
+  #   assert_distilled 3.14, nil, :undefined, :float, default: 3.14
+  # end
 
-  test "atom to float" do
-    assert_distill_error {:bad_receipt, {:atom, :float}},
-      :"3.14", :atom, :float
-  end
+  # test "atom to float" do
+  #   assert_distill_error {:bad_receipt, {:atom, :float}},
+  #     :"3.14", :atom, :float
+  # end
 
-  test "boolean to float" do
-    assert_distill_error {:bad_receipt, {:boolean, :float}},
-      false, :boolean, :float
-  end
+  # test "boolean to float" do
+  #   assert_distill_error {:bad_receipt, {:boolean, :float}},
+  #     false, :boolean, :float
+  # end
 
-  @tag timeout: 60000
-  property "integer to float" do
-    for_all x in int do
-      f = x / 1
-      assert_distilled ^f, x, :integer, :float
-    end
-  end
+  # @tag timeout: 60000
+  # property "integer to float" do
+  #   for_all x in int do
+  #     f = x / 1
+  #     assert_distilled ^f, x, :integer, :float
+  #   end
+  # end
 
-  @tag timeout: 60000
-  test "float to float" do
-    for_all x in real do
-      assert_distilled ^x, x, :float, :float
-    end
-  end
+  # @tag timeout: 60000
+  # test "float to float" do
+  #   for_all x in real do
+  #     assert_distilled ^x, x, :float, :float
+  #   end
+  # end
 
-  @tag timeout: 60000
-  property "number to float" do
-    for_all x in number do
-      f = x /1
-      assert_distilled ^f, x, :number, :float
-    end
-  end
+  # @tag timeout: 60000
+  # property "number to float" do
+  #   for_all x in number do
+  #     f = x /1
+  #     assert_distilled ^f, x, :number, :float
+  #   end
+  # end
 
-  @tag timeout: 60000
-  property "good string to float" do
-    for_all x in real do
-      assert_distilled ^x, to_string(x), :string, :float
-    end
-  end
+  # @tag timeout: 60000
+  # property "good string to float" do
+  #   for_all x in real do
+  #     assert_distilled ^x, to_string(x), :string, :float
+  #   end
+  # end
 
-  @tag timeout: 60000
-  property "bad string to float" do
-    for_all x in unicode_binary do
-      implies not is_string_float(x) do
-        assert_distill_error {:distillation_error, {:string, :float}},
-          x, :string, :float
-      end
-    end
-  end
+  # @tag timeout: 60000
+  # property "bad string to float" do
+  #   for_all x in unicode_binary do
+  #     implies not is_string_float(x) do
+  #       assert_distill_error {:distillation_error, {:string, :float}},
+  #         x, :string, :float
+  #     end
+  #   end
+  # end
 
-  @tag timeout: 60000
-  property "good binary to float" do
-    for_all x in real do
-      assert_distilled ^x, to_string(x), :binary, :float
-    end
-  end
+  # @tag timeout: 60000
+  # property "good binary to float" do
+  #   for_all x in real do
+  #     assert_distilled ^x, to_string(x), :binary, :float
+  #   end
+  # end
 
-  @tag timeout: 60000
-  property "bad binary to float" do
-    for_all x in binary do
-      implies not is_string_float(x) do
-        assert_distill_error {:distillation_error, {:binary, :float}},
-          x, :binary, :float
-      end
-    end
-  end
+  # @tag timeout: 60000
+  # property "bad binary to float" do
+  #   for_all x in binary do
+  #     implies not is_string_float(x) do
+  #       assert_distill_error {:distillation_error, {:binary, :float}},
+  #         x, :binary, :float
+  #     end
+  #   end
+  # end
 
-  test "convert to allowed float" do
-    assert_distilled 3.14, "3.14", :string, :float, allowed: [3.14, 2.718]
-    assert_distilled 2.718, 2.718, :float, :float, allowed: [3.14, 2.718]
-    assert_distill_error {:value_not_allowed, :float},
-      2, :integer, :float, allowed: [3.14, 2.718]
-  end
+  # test "convert to allowed float" do
+  #   assert_distilled 3.14, "3.14", :string, :float, allowed: [3.14, 2.718]
+  #   assert_distilled 2.718, 2.718, :float, :float, allowed: [3.14, 2.718]
+  #   assert_distill_error {:value_not_allowed, :float},
+  #     2, :integer, :float, allowed: [3.14, 2.718]
+  # end
 
 
-  defp is_string_float(str) do
-    try do
-      is_binary(String.to_float(str))
-    rescue
-      ArgumentError -> false
-    end
-  end
+  # defp is_string_float(str) do
+  #   try do
+  #     is_float(String.to_float(str))
+  #   rescue
+  #     ArgumentError -> false
+  #   end
+  # end
 
 end

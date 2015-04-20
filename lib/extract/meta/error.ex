@@ -6,14 +6,14 @@ defmodule Extract.Meta.Error do
   @error_alias {:__aliases__, [alias: false], [:Extract, :Meta, :Error]}
 
 
-  defmacro comptime(ctx, {f, c, a})
-   when is_atom(f) and (is_list(a) or a == nil) do
+  defmacro comptime(ctx, {f, c, args})
+   when is_atom(f) and (is_list(args) or args == nil) do
     alias_ast = {:__aliases__, [alias: false], [:Extract, :Meta, :Error]}
     fun_name = String.to_atom("comptime_" <> Atom.to_string(f))
     aliased_fun = {:., [], [alias_ast, fun_name]}
     props_ast = quote do: Context.properties(unquote(ctx))
-    args = if is_list(a), do: a ++ [props_ast], else: [props_ast]
-    _ast = {aliased_fun, c, args}
+    args = if is_list(args), do: args, else: []
+    _ast = {aliased_fun, c, args ++ [props_ast]}
     # Extract.Meta.Debug.ast(_ast, info: "Error.comptime")
   end
 
@@ -125,7 +125,7 @@ defmodule Extract.Meta.Error do
   def comptime_value_not_allowed(value, kv \\ []) do
     {tag, desc} = type_info(kv)
     reason = {:value_not_allowed, tag}
-    message = "#{desc}value not allowed: #{value}"
+    message = "#{desc}value not allowed: #{Macro.to_string(value)}"
     raise Extract.Error, reason: reason, message: message
   end
 
@@ -145,7 +145,7 @@ defmodule Extract.Meta.Error do
   def comptime_bad_value(value, kv \\ []) do
     {tag, desc} = type_info(kv)
     reason = {:bad_value, {tag, :bad_type}}
-    message = "bad #{desc}value: #{inspect value}"
+    message = "bad #{desc}value: #{Macro.to_string(value)}"
     raise Extract.Error, reason: reason, message: message
   end
 
@@ -165,7 +165,8 @@ defmodule Extract.Meta.Error do
   def comptime_value_too_big(value, max, kv \\ []) do
     {tag, desc} = type_info(kv)
     reason = {:bad_value, {tag, :too_big}}
-    message = "#{desc}value bigger than #{max}: #{value}"
+    message = "#{desc}value bigger than #{Macro.to_string(max)}: "
+              <> "#{Macro.to_string(value)}"
     raise Extract.Error, reason: reason, message: message
   end
 
@@ -173,7 +174,7 @@ defmodule Extract.Meta.Error do
   defmacro runtime_value_too_big(value, max, kv \\ []) do
     {tag, desc} = type_info(kv)
     reason = {:bad_value, {tag, :too_big}}
-    message = "#{desc}value bigger than #{max}: "
+    message = "#{desc}value bigger than #{Macro.to_string(max)}: "
     quote do
       raise Extract.Error,
         reason: unquote(reason),
@@ -185,7 +186,8 @@ defmodule Extract.Meta.Error do
   def comptime_value_too_small(value, min, kv \\ []) do
     {tag, desc} = type_info(kv)
     reason = {:bad_value, {tag, :too_small}}
-    message = "#{desc}value smaller than #{min}: #{value}"
+    message = "#{desc}value smaller than #{Macro.to_string(min)}: "
+              <> "#{Macro.to_string(value)}"
     raise Extract.Error, reason: reason, message: message
   end
 
@@ -193,7 +195,7 @@ defmodule Extract.Meta.Error do
   defmacro runtime_value_too_small(value, min, kv \\ []) do
     {tag, desc} = type_info(kv)
     reason = {:bad_value, {tag, :too_small}}
-    message = "#{desc}value smaller than #{min}: "
+    message = "#{desc}value smaller than #{Macro.to_string(min)}: "
     quote do
       raise Extract.Error,
         reason: unquote(reason),
@@ -205,7 +207,7 @@ defmodule Extract.Meta.Error do
   def comptime_distillation_error(value, kv \\ []) do
     {from_tag, to_tag, desc} = conv_info(kv)
     reason = {:distillation_error, {from_tag, to_tag}}
-    message = "error converting value#{desc}: #{inspect value}"
+    message = "error converting value#{desc}: #{Macro.to_string(value)}"
     raise Extract.Error, reason: reason, message: message
   end
 
