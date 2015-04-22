@@ -19,9 +19,17 @@ defmodule Test do
   #   BasicTypes._distill(v, f, t)
   # end
 
-  # def test() do
-  #   Extract.validate!(3, :integer)
-  # end
+  def test() do
+    v = 3
+    f = :integer
+    # Extract.validate!(3, :integer)
+    # Extract.validate!(nil, :integer)
+    # Extract.validate!(3, :integer)
+    # Extract.validate!(3, :foo)
+    # Extract.validate!(3, f)
+    Extract.validate!(v, :integer)
+    # Extract.validate!(v, f)
+  end
 
   # def test(value, format) do
   #   BasicTypes.validate value, format

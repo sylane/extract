@@ -86,60 +86,64 @@ defmodule Extract.Pipeline do
     ast_var = Macro.var(:original_ast, __MODULE__)
     lookup = build_lookup(ast_var, ctx_var, Keyword.get(body, :do))
     else_block = protect(compose(ast_var, ctx_var, Keyword.get(body, :else)))
-    quote location: :keep do
+    _ast = quote location: :keep do
       unquote(ast_var) = unquote(ast)
       unquote(ctx_var) = unquote(ctx)
       choices = unquote(lookup)
       else_branch = unquote(else_block)
-      case unquote(format) do
-        format when is_atom(format) ->
-          case {Keyword.fetch(choices, format), else_branch} do
-            {{:ok, {:ok, result}}, _} -> result
-            {{:ok, {:error, {error, stacktrace}}}, _} ->
-              reraise error, stacktrace
-            {:error, {:ok, result}} -> result
-            {:error, {:error, {error, stacktrace}}} ->
-              reraise error, stacktrace
-          end
-        format ->
-          # FIXME: what it a :else block raises a compile-time exception ?
-          {:ok, {else_ast, else_ctx}} = else_branch
-          sub_ctxs = for {_, {:ok, {_, c}}} <- choices, do: c
-          # If there is some errors, be sure to update the context
-          may_raise = (for {_, {:error, _}} <- choices, do: true) != []
-          ctx = if may_raise do
-            unquote(ctx_var)
-              |> Context.merge([else_ctx] ++ sub_ctxs)
-              |> Context.may_raise
-          else
-            unquote(ctx_var) |> Context.merge([else_ctx] ++ sub_ctxs)
-          end
-          choices_ast = for {f, choice} <- choices do
-            case choice do
-              {:ok, {ast, _}} ->
-                [choice_ast] = quote location: :keep do
-                  unquote(f) -> unquote(ast)
-                end
-                choice_ast
-              {:error, {error, _stacktrace}} ->
-                escaped_error = Macro.escape(error)
-                [choice_ast] = quote location: :keep do
-                  unquote(f) -> raise unquote(escaped_error)
-                end
-                choice_ast
-            end
-          end
-          default_ast = quote location: :keep do
-            _other -> unquote(else_ast)
-          end
-          all_choices_ast = choices_ast ++ default_ast
-          ast = quote location: :keep do
-            case unquote(format) do
-              unquote(all_choices_ast)
-            end
-          end
-          {ast, ctx}
+      Extract.Pipeline.select(unquote(ctx_var), unquote(format),
+                              choices, else_branch)
+    end
+    # Extract.Meta.Debug.ast(_ast, env: __ENV__, caller: __CALLER__)
+  end
+
+
+  def select(ctx, key, choices, otherwise) do
+    if is_atom(key) do
+      case {Keyword.fetch(choices, key), otherwise} do
+        {{:ok, {:ok, result}}, _} -> result
+        {{:ok, {:error, {error, stacktrace}}}, _} ->
+          reraise error, stacktrace
+        {:error, {:ok, result}} -> result
+        {:error, {:error, {error, stacktrace}}} ->
+          reraise error, stacktrace
       end
+    else
+      # FIXME: what if the other block raise a compile-time exception ?
+      {:ok, {other_ast, other_ctx}} = otherwise
+      sub_ctxs = for {_, {:ok, {_, c}}} <- choices, do: c
+      # If there is some errors, be sure to update the context
+      may_raise = (for {_, {:error, _}} <- choices, do: true) != []
+      ctx = if may_raise do
+        ctx |> Context.merge([other_ctx] ++ sub_ctxs) |> Context.may_raise
+      else
+        ctx |> Context.merge([other_ctx] ++ sub_ctxs)
+      end
+      choices_ast = for {k, choice} <- choices do
+        case choice do
+          {:ok, {ast, _}} ->
+            [choice_ast] = quote location: :keep do
+              unquote(k) -> unquote(ast)
+            end
+            choice_ast
+          {:error, {error, _stacktrace}} ->
+            escaped_error = Macro.escape(error)
+            [choice_ast] = quote location: :keep do
+              unquote(k) -> raise unquote(escaped_error)
+            end
+            choice_ast
+        end
+      end
+      default_ast = quote location: :keep do
+        _other -> unquote(other_ast)
+      end
+      all_choices_ast = choices_ast ++ default_ast
+      ast = quote location: :keep do
+        case unquote(key) do
+          unquote(all_choices_ast)
+        end
+      end
+      {ast, ctx}
     end
   end
 
