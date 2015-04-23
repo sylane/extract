@@ -11,12 +11,6 @@ defmodule TestHelper do
   end
 
 
-  # defmacro atom() do
-  #   quote do
-  #     oneof([ExCheck.atom, bool, nil])
-  #   end
-  # end
-
   defmacro basic_any() do
     quote do
       oneof([int, real, bool, atom])
@@ -40,6 +34,16 @@ defmodule TestHelper do
         val = unquote(val)
         fmt = unquote(fmt)
         opts = unquote(opts)
+
+        allow_missing = Keyword.has_key?(opts, :allow_missing)
+        allow_undefined = Keyword.has_key?(opts, :allow_undefined)
+        only_macro = allow_missing or allow_undefined
+
+        if not only_macro do
+          assert {:ok, unquote(exp)} = Extract.BasicTypes.validate(val, fmt, opts)
+          assert unquote(exp) = Extract.BasicTypes.validate!(val, fmt, opts)
+        end
+
         expect_result({:ok, unquote(exp)}, [Extract.BasicTypes],
           Extract.validate(static: val, static: fmt, static_kw: opts))
         # expect_result({:ok, unquote(exp)},[Extract.BasicTypes],
@@ -56,6 +60,7 @@ defmodule TestHelper do
         #   Extract.validate!(static: val, dynamic: fmt, static_kw: opts))
         expect_result(unquote(exp), [Extract.BasicTypes],
           Extract.validate!(dynamic: val, dynamic: fmt, static_kw: opts))
+
         true
       end.()
     end
@@ -71,6 +76,19 @@ defmodule TestHelper do
         val = unquote(val)
         fmt = unquote(fmt)
         opts = unquote(opts)
+
+        allow_missing = Keyword.has_key?(opts, :allow_missing)
+        allow_undefined = Keyword.has_key?(opts, :allow_undefined)
+        only_macro = allow_missing or allow_undefined
+
+        if not only_macro do
+          assert {:error, unquote(exp)} = Extract.BasicTypes.validate(val, fmt, opts)
+          e = assert_raise Extract.Error, fn ->
+            Extract.BasicTypes.validate!(val, fmt, opts)
+          end
+          assert unquote(exp) = e.reason
+        end
+
         expect_result({:error, unquote(exp)}, [Extract.BasicTypes],
           Extract.validate(static: val, static: fmt, static_kw: opts))
         # expect_result({:error, unquote(exp)}, [Extract.BasicTypes],
@@ -87,6 +105,7 @@ defmodule TestHelper do
         #   Extract.validate!(static: val, dynamic: fmt, static_kw: opts))
         expect_raise(unquote(exp), [Extract.BasicTypes],
           Extract.validate!(dynamic: val, dynamic: fmt, static_kw: opts))
+
         true
       end.()
     end

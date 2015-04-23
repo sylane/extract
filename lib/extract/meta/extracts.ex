@@ -26,9 +26,15 @@ defmodule Extract.Meta.Extracts do
   end
 
 
-  def registered(module) do
+  def all(module) do
     collection = Module.get_attribute(module, @attribute_name)
     for {_, extract} <- collection, do: extract
+  end
+
+
+  def local(module) do
+    collection = Module.get_attribute(module, @attribute_name)
+    for {_, extract} <- collection, extract.parent == module, do: extract
   end
 
 

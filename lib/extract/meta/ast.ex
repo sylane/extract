@@ -15,4 +15,34 @@ defmodule Extract.Meta.Ast do
     {{:., [], [mod, fun]}, [], args}
   end
 
+
+  def comptime?([]), do: true
+
+  def comptime?(ast) when is_atom(ast), do: true
+
+  def comptime?(ast) when is_number(ast), do: true
+
+  def comptime?(ast) when is_binary(ast), do: true
+
+  def comptime?([value | rem]) do
+    comptime?(value) and comptime?(rem)
+  end
+
+  def comptime?({:|, _, [a, b]}) do
+    comptime?(a) and comptime?(b)
+  end
+  def comptime?({key, val}) do
+    comptime?(key) and comptime?(val)
+  end
+
+  def comptime?({:{}, _, items}) when is_list(items) do
+    Enum.all?(for v <- items, do: comptime?(v))
+  end
+
+  def comptime?({:%{}, _, items}) when is_list(items) do
+    Enum.all?(for v <- items, do: comptime?(v))
+  end
+
+  def comptime?(_any), do: false
+
 end

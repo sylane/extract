@@ -8,9 +8,9 @@ defmodule Extract.BasicTypes do
   alias Extract.Meta.Options
   alias Extract.Meta.Extracts
 
-
   @generate_validation :validate
   @generate_validation! :validate!
+
 
   # # extract_type :undefined, "undefined" do
   #   unquote(match_undefined) = value -> value
@@ -302,12 +302,15 @@ defmodule Extract.BasicTypes do
 
 
     def validate_integer(ast, ctx, opts, body) do
+      #FIXME: implement multi_fetch ?
+      checked_opts = [Options.fetch(ctx, opts, :min),
+                      Options.fetch(ctx, opts, :min)]
       pipeline ast, ctx do
         Extract.Meta.type_info :integer, "integer"
         Extract.Meta.allowed_options opts, [:optional, :default, :allowed, :min, :max]
         Extract.Meta.assert_undefined_body body
         condition Extract.Meta.defined?(opts) do
-          condition Extract.Meta.comptime? do
+          condition Extract.Meta.comptime? checked_opts do
             validate_number_comptime opts, &is_integer/1
           else
             validate_number_runtime opts, :is_integer
@@ -319,12 +322,14 @@ defmodule Extract.BasicTypes do
 
 
     def validate_float(ast, ctx, opts, body) do
+      checked_opts = [Options.fetch(ctx, opts, :min),
+                      Options.fetch(ctx, opts, :min)]
       pipeline ast, ctx do
         Extract.Meta.type_info :float, "float"
         Extract.Meta.allowed_options opts, [:optional, :default, :allowed, :min, :max]
         Extract.Meta.assert_undefined_body body
         condition Extract.Meta.defined?(opts) do
-          condition Extract.Meta.comptime? do
+          condition Extract.Meta.comptime? checked_opts do
             validate_number_comptime opts, &is_float/1
           else
             validate_number_runtime opts, :is_float
@@ -336,12 +341,14 @@ defmodule Extract.BasicTypes do
 
 
     def validate_number(ast, ctx, opts, body) do
+      checked_opts = [Options.fetch(ctx, opts, :min),
+                      Options.fetch(ctx, opts, :min)]
       pipeline ast, ctx do
         Extract.Meta.type_info :number, "number"
         Extract.Meta.allowed_options opts, [:optional, :default, :allowed, :min, :max]
         Extract.Meta.assert_undefined_body body
         condition Extract.Meta.defined?(opts) do
-          condition Extract.Meta.comptime? do
+          condition Extract.Meta.comptime? checked_opts do
             validate_number_comptime opts, &is_number/1
           else
             validate_number_runtime opts, :is_number

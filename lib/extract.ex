@@ -23,7 +23,7 @@ defmodule Extract do
 
   defmacro validate!(value, format, opts \\ [], body \\ []) do
     #FIXME: handle context errors (call from non-managed modules)
-    extracts = Extracts.registered(__CALLER__.module)
+    extracts = Extracts.all(__CALLER__.module)
     _ast = pipeline value, env: __ENV__, caller: __CALLER__ do
       _meta_validate! format, opts, body, extracts
       Meta.terminate!
@@ -36,7 +36,7 @@ defmodule Extract do
 
   defmacro validate(value, format, opts \\ [], body \\ []) do
     #FIXME: handle context errors (call from non-managed modules)
-    extracts = Extracts.registered(__CALLER__.module)
+    extracts = Extracts.all(__CALLER__.module)
     _ast = pipeline value, env: __ENV__, caller: __CALLER__ do
       _meta_validate! format, opts, body, extracts
       Meta.terminate

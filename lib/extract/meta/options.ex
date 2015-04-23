@@ -1,6 +1,7 @@
 defmodule Extract.Meta.Options do
 
   require Extract.Meta.Error
+  require Extract.Meta.Ast
 
   alias Extract.Meta.Context
   alias Extract.Meta.Error
@@ -11,41 +12,45 @@ defmodule Extract.Meta.Options do
   end
 
 
-  def get(ctx, opts, key, default \\ nil)
-
-  def get(ctx, opts, :allow_missing, default) do
-    optional = get_option(ctx, opts, :optional, false)
-    allow_missing = get_option(ctx, opts, :allow_missing, false)
-    optional or allow_missing or default
-  end
-
-  def get(ctx, opts, :allow_undefined, default) do
-    optional = get_option(ctx, opts, :optional, false)
-    allow_undefined = get_option(ctx, opts, :allow_undefined, false)
-    optional or allow_undefined or default
-  end
-
-  def get(ctx, opts, key, default) do
-    get_option(ctx, opts, key, default)
-  end
-
-
-  def fetch(ctx, opts, :allow_missing) do
-    case fetch_option(ctx, opts, :optional) do
-      :error -> fetch_option(ctx, opts, :allow_missing)
-      result -> result
+  def get(ctx, opts, key, default \\ nil) do
+    case fetch(ctx, opts, key) do
+      :error -> default
+      {:ok, value} -> value
     end
   end
 
-  def fetch(ctx, opts, :allow_undefined) do
+
+  def fetch(ctx, opts, allow_opt)
+   when allow_opt in [:allow_undefined, :allow_missing] do
     case fetch_option(ctx, opts, :optional) do
-      :error -> fetch_option(ctx, opts, :allow_undefined)
-      result -> result
+      :error -> fetch_option(ctx, opts, allow_opt)
+      {:ok, false} -> fetch_option(ctx, opts, allow_opt)
+      {:ok, true} = result -> result
+      {:ok, ast1} ->
+        case fetch_option(ctx, opts, allow_opt) do
+          :error -> {:ok, ast1}
+          {:ok, false} -> {:ok, ast1}
+          {:ok, true} = result -> result
+          {:ok, ast2} -> {:ok, quote do: unquote(ast1) or unquote(ast2)}
+        end
     end
   end
 
   def fetch(ctx, opts, key) do
     fetch_option(ctx, opts, key)
+  end
+
+
+  defp allowed?(allowed, :allow_undefined) do
+    Enum.member?(allowed, :optional) or Enum.member?(allowed, :allow_undefined)
+  end
+
+  defp allowed?(allowed, :allow_missing) do
+    Enum.member?(allowed, :optional) or Enum.member?(allowed, :allow_missing)
+  end
+
+  defp allowed?(allowed, name) do
+    Enum.member?(allowed, name)
   end
 
 
@@ -69,19 +74,6 @@ defmodule Extract.Meta.Options do
   end
 
 
-  defp allowed?(allowed, :allow_undefined) do
-    Enum.member?(allowed, :optional) or Enum.member?(allowed, :allow_undefined)
-  end
-
-  defp allowed?(allowed, :allow_missing) do
-    Enum.member?(allowed, :optional) or Enum.member?(allowed, :allow_missing)
-  end
-
-  defp allowed?(allowed, name) do
-    Enum.member?(allowed, name)
-  end
-
-
   defp valid?(:optional, flag) when is_boolean(flag), do: true
   defp valid?(:allow_undefined, flag) when is_boolean(flag), do: true
   defp valid?(:allow_missing, flag) when is_boolean(flag), do: true
@@ -90,15 +82,19 @@ defmodule Extract.Meta.Options do
   defp valid?(:default, _any), do: true
   defp valid?(:max, num) when is_number(num), do: true
   defp valid?(:min, num) when is_number(num), do: true
+  defp valid?(:optional, {var, _, ns})
+   when is_atom(var) and is_atom(ns), do: true
+  defp valid?(:allow_undefined, {var, _, ns})
+   when is_atom(var) and is_atom(ns), do: true
+  defp valid?(:allow_missing, {var, _, ns})
+   when is_atom(var) and is_atom(ns), do: true
+  defp valid?(:allowed, {var, _, ns})
+   when is_atom(var) and is_atom(ns), do: true
+  defp valid?(:max, {var, _, ns})
+   when is_atom(var) and is_atom(ns), do: true
+  defp valid?(:min, {var, _, ns})
+   when is_atom(var) and is_atom(ns), do: true
   defp valid?(_other, _any), do: false
-
-
-  defp get_option(ctx, opts, key, default) do
-    case Keyword.fetch(resolve(ctx, opts), key) do
-      {:ok, quoted} -> resolve(ctx, quoted, key)
-      :error -> default
-    end
-  end
 
 
   defp fetch_option(ctx, opts, key) do

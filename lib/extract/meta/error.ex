@@ -53,6 +53,24 @@ defmodule Extract.Meta.Error do
   end
 
 
+  def comptime_bad_option(value, name, _kv \\ []) do
+    reason = {:bad_option, name}
+    message = "invalid #{name} value: #{inspect value}"
+    raise Extract.Error, reason: reason, message: message
+  end
+
+
+  defmacro runtime_bad_option(value, name, _kv \\ []) do
+    reason = {:bad_format, name}
+    message = "invalid #{name} option value: "
+    quote do
+      raise Extract.Error,
+        reason: unquote(reason),
+        message: unquote(message) <> inspect(unquote(value))
+    end
+  end
+
+
   def comptime_bad_format(format, _kv \\ []) do
     reason = {:bad_format, format}
     message = "invalid format #{inspect format}"
@@ -174,11 +192,11 @@ defmodule Extract.Meta.Error do
   defmacro runtime_value_too_big(value, max, kv \\ []) do
     {tag, desc} = type_info(kv)
     reason = {:bad_value, {tag, :too_big}}
-    message = "#{desc}value bigger than #{Macro.to_string(max)}: "
+    message = "#{desc}value bigger than"
     quote do
       raise Extract.Error,
         reason: unquote(reason),
-        message: unquote(message) <> inspect(unquote(value))
+        message: "#{unquote(message)} #{inspect unquote(max)}: #{inspect unquote(value)}"
     end
   end
 
@@ -195,11 +213,11 @@ defmodule Extract.Meta.Error do
   defmacro runtime_value_too_small(value, min, kv \\ []) do
     {tag, desc} = type_info(kv)
     reason = {:bad_value, {tag, :too_small}}
-    message = "#{desc}value smaller than #{Macro.to_string(min)}: "
+    message = "#{desc}value smaller than"
     quote do
       raise Extract.Error,
         reason: unquote(reason),
-        message: unquote(message) <> inspect(unquote(value))
+        message: "#{unquote(message)} #{inspect unquote(min)}: #{inspect unquote(value)}"
     end
   end
 

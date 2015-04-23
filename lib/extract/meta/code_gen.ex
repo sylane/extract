@@ -1,6 +1,11 @@
 defmodule Extract.Meta.CodeGen do
 
   alias Extract.Meta.Extracts
+  alias Extract.Meta.Ast
+
+
+  @gen_valid :generate_validation
+  @gen_valid! :generate_validation!
 
 
   defmacro module_requirements(_mode) do
@@ -13,7 +18,7 @@ defmodule Extract.Meta.CodeGen do
 
 
   defmacro using_macro() do
-    extracts = Extracts.registered(__CALLER__.module)
+    extracts = Extracts.all(__CALLER__.module)
     required_modules = Extracts.required_modules(__CALLER__.module)
     escaped_extracts = for x <- extracts, do: Macro.escape(x)
     _ast = quote do
@@ -38,30 +43,106 @@ defmodule Extract.Meta.CodeGen do
 
 
   defmacro validation_functions() do
-    extracts = Extracts.registered(__CALLER__.module)
-    ast_validate = for x <- extracts, x.parent == __CALLER__.module do
-      name = x.name
-      quote do
-        def validate(value, unquote(name), _opts) do
-          Extract.validate(value, unquote(name))
+    value_var = Macro.var(:value, __MODULE__)
+    specs = validation_specs(__CALLER__.module)
+    _ast = for {macro_mod, macro_fun, gen_fun, fun_specs} <- specs do
+      fun_statements = for {fmt, allowed, opts_specs} <- fun_specs do
+      # fun_statements = for {fmt, allowed, opts_specs} <- [hd(fun_specs)] do
+        match_statements = for {opts_ast, match_ast} <- opts_specs do
+          call = Ast.call(macro_mod, macro_fun, [value_var, fmt, opts_ast])
+          [statement] = quote do
+            #FIXME: Remove this useless encapsulation.
+            #       It is required to prevent error 'ambiguous_catch_try_state'
+            #       with Erlang versions < 18.
+            unquote(match_ast) -> fn -> unquote(call) end.()
+          end
+          statement
+        end
+        opts_statment = for o <- allowed do
+          quote do: Keyword.fetch(opts, unquote(o))
+        end
+        if opts_statment == [] do
+          call = Ast.call(macro_mod, macro_fun, [value_var, fmt, []])
+          quote do
+            def unquote(gen_fun)(unquote(value_var), unquote(fmt), _opts) do
+              unquote(call)
+            end
+          end
+        else
+          quote do
+            def unquote(gen_fun)(unquote(value_var), unquote(fmt), opts) do
+              opts = unquote(opts_statment)
+              case opts do
+                unquote(match_statements)
+              end
+            end
+          end
         end
       end
-    end
-    ast_validate! = for x <- extracts, x.parent == __CALLER__.module do
-      name = x.name
       quote do
-        def validate!(value, unquote(name), _opts) do
-          Extract.validate!(value, unquote(name))
+        def unquote(gen_fun)(value, format, opts \\ [])
+        unquote_splicing(fun_statements)
+        def unquote(gen_fun)(_value, format, _opts) do
+          Extract.Meta.Error.runtime_bad_format(format)
         end
       end
-    end
-    _ast = quote do
-      def validate(value, format, opts \\ [])
-      unquote_splicing(ast_validate)
-      def validate!(value, format, opts \\ [])
-      unquote_splicing(ast_validate!)
     end
     # Extract.Meta.Debug.ast(_ast, env: __ENV__, caller: __CALLER__)
+  end
+
+
+  defp validation_specs(module) do
+    extracts = Extracts.local(module)
+    case Module.get_attribute(module, @gen_valid) do
+      nil -> []
+      fun_name ->
+        opts_specs = for x <- extracts do
+          opts = Enum.sort(x.opts)
+          {x.name, opts, opts_specs(opts)}
+        end
+        [{Extract, :validate, fun_name, opts_specs}]
+    end
+    ++
+    case Module.get_attribute(module, @gen_valid!) do
+      nil -> []
+      fun_name ->
+        opts_specs = for x <- extracts do
+          opts = Enum.sort(x.opts)
+          {x.name, opts, opts_specs(opts)}
+        end
+        [{Extract, :validate!, fun_name, opts_specs}]
+    end
+  end
+
+
+  defp opts_specs(opts) do
+    vars = for o <- opts, do: Macro.var(o, __MODULE__)
+    combinations = Enum.sort(combinate(vars))
+    for combination <- combinations do
+      opts_ast = for {n ,_, _} = v <- combination, do: {n, v}
+      {opts_ast, opts_spec(vars, combination)}
+    end
+  end
+
+
+  defp opts_spec(ref, choice), do: opts_spec(ref, choice, [])
+
+
+  defp opts_spec([], [], acc), do: Enum.reverse(acc)
+
+  defp opts_spec([name | ref], [name | choice], acc) do
+    opts_spec(ref, choice, [{:ok, name} | acc])
+  end
+
+  defp opts_spec([_ | ref], choice, acc) do
+    opts_spec(ref, choice, [:error | acc])
+  end
+
+
+  defp combinate([]), do: [[]]
+  defp combinate([h | t]) do
+    c = combinate(t)
+    c ++ for i <- c, do: [h | i]
   end
 
 
@@ -74,26 +155,26 @@ defmodule Extract.Meta.CodeGen do
   #   body_var = Macro.var(:body, __MODULE__)
   #   froms = for {f, _} <- local_receipts, do: f
   #   unique_froms = Enum.into(froms, HashSet.new())
-  #   from_statments = for from <- unique_froms do
+  #   from_statements = for from <- unique_froms do
   #     tos = for {f, t} <- local_receipts, f == from, do: t
   #     unique_tos = Enum.into(tos, HashSet.new())
-  #     to_statments = for to <- unique_tos do
+  #     to_statements = for to <- unique_tos do
   #       {_, _, fun} = receipts[{from, to}]
   #       call = {fun, [], [opts_var, body_var]}
-  #       [to_statment] = quote do
+  #       [to_statement] = quote do
   #         unquote(to) -> unquote(call)
   #       end
-  #       to_statment
+  #       to_statement
   #     end
-  #     [from_statment] = quote do
+  #     [from_statement] = quote do
   #       unquote(from) ->
   #         branch to do
-  #           unquote(to_statments)
+  #           unquote(to_statements)
   #         else
   #           Meta.bad_receipt_error from, to
   #         end
   #     end
-  #     from_statment
+  #     from_statement
   #   end
   #   _ast = quote do
   #     defmacro _distill(value, from, to,
@@ -102,7 +183,7 @@ defmodule Extract.Meta.CodeGen do
   #       pipeline value, env: __ENV__, caller: __CALLER__, debug: true do
   #       # pipeline value, env: __ENV__, caller: __CALLER__ do
   #         branch from do
-  #           unquote(from_statments)
+  #           unquote(from_statements)
   #         else
   #           Meta.bad_receipt_error from, to
   #         end
@@ -117,7 +198,7 @@ defmodule Extract.Meta.CodeGen do
   #       pipeline value, env: __ENV__, caller: __CALLER__, debug: true do
   #       # pipeline value, env: __ENV__, caller: __CALLER__ do
   #         branch from do
-  #           unquote(from_statments)
+  #           unquote(from_statements)
   #         else
   #           Meta.bad_receipt_error from, to
   #         end
@@ -131,7 +212,7 @@ defmodule Extract.Meta.CodeGen do
   #                        unquote(body_var)) do
   #       pipeline ast, ctx do
   #         branch from do
-  #           unquote(from_statments)
+  #           unquote(from_statements)
   #         else
   #           Meta.bad_receipt_error from, to
   #         end

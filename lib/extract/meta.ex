@@ -5,10 +5,12 @@ defmodule Extract.Meta do
   require Extract.Meta.Context
   require Extract.Meta.Options
   require Extract.Meta.Error
+  require Extract.Meta.Ast
 
   alias Extract.Meta.Context
   alias Extract.Meta.Options
   alias Extract.Meta.Error
+  alias Extract.Meta.Ast
 
 
   def type_info(ast, ctx, tag, description) do
@@ -43,7 +45,7 @@ defmodule Extract.Meta do
     may_be_missing = Context.may_be_missing?(ctx)
     allow_undefined = Options.get(ctx, opts, :allow_undefined, false)
     may_be_undefined = Context.may_be_undefined?(ctx)
-    is_comptime = comptime_ast?(ast)
+    is_comptime = Ast.comptime?(ast)
     case Options.fetch(ctx, opts, :allowed) do
       :error -> {ast, ctx}
       {:ok, allowed} ->
@@ -122,6 +124,32 @@ defmodule Extract.Meta do
               end
             end
             {ast, ctx}
+          {false, allow_miss, true, allow_undef, true, _, ast} ->
+            # may be missing or undefined but if it is allowed is runtime
+            val_var = Macro.var(:value, __MODULE__)
+            {chk_ast, chk_ctx} = runtime_check_allowed(ctx, val_var, allowed)
+            {err_ast, [err_var]} = Error.runtime(ctx, value_not_allowed/1)
+            miss_msg = "optional or allow_missing"
+            {miss_ast, [miss_var]} = Error.runtime(ctx, bad_option(miss_msg)/1)
+            udef_msg = "optional or allow_undefined"
+            {udef_ast, [udef_var]} = Error.runtime(ctx, bad_option(udef_msg)/1)
+            ctx = chk_ctx |> Context.may_raise
+            ast = quote location: :keep do
+              case {unquote(allow_miss), unquote(allow_undef), unquote(ast)} do
+                {_, true, unquote(undefined_value) = result} -> result
+                {_, false, unquote(undefined_value) = unquote(err_var)} ->
+                  unquote(err_ast)
+                {_, unquote(udef_var), unquote(undefined_value)} ->
+                  unquote(udef_ast)
+                {true, _, unquote(missing_value) = result} -> result
+                {false, _, unquote(missing_value) = unquote(err_var)} ->
+                  unquote(err_ast)
+                {unquote(miss_var), _, unquote(undefined_value)} ->
+                  unquote(miss_ast)
+                {_, _, unquote(val_var)} -> unquote(chk_ast)
+              end
+            end
+            {ast, ctx}
           {false, true, true, _, false, _, ast} ->
             # may be missing but it is allowed
             val_var = Macro.var(:value, __MODULE__)
@@ -144,6 +172,25 @@ defmodule Extract.Meta do
               case unquote(ast) do
                 unquote(missing_value) = unquote(err_var) -> unquote(err_ast)
                 unquote(val_var) -> unquote(chk_ast)
+              end
+            end
+            {ast, ctx}
+          {false, allow_miss, true, _, false, _, ast} ->
+            # may be missing but if it is allowed or not at runtime
+            val_var = Macro.var(:value, __MODULE__)
+            {chk_ast, chk_ctx} = runtime_check_allowed(ctx, val_var, allowed)
+            {err_ast, [err_var]} = Error.runtime(ctx, value_not_allowed/1)
+            miss_msg = "optional or allow_missing"
+            {miss_ast, [miss_var]} = Error.runtime(ctx, bad_option(miss_msg)/1)
+            ctx = chk_ctx |> Context.may_raise
+            ast = quote location: :keep do
+              case {unquote(allow_miss), unquote(ast)} do
+                {true, unquote(missing_value) = result} -> result
+                {false, unquote(missing_value) = unquote(err_var)} ->
+                  unquote(err_ast)
+                {unquote(miss_var), unquote(undefined_value)} ->
+                  unquote(miss_ast)
+                {_, unquote(val_var)} -> unquote(chk_ast)
               end
             end
             {ast, ctx}
@@ -172,6 +219,25 @@ defmodule Extract.Meta do
               end
             end
             {ast, ctx}
+          {false, _, false, allow_undef, true, _, ast} ->
+            # may be undefined but if it is allowed is defined at runtime
+            val_var = Macro.var(:value, __MODULE__)
+            {chk_ast, chk_ctx} = runtime_check_allowed(ctx, val_var, allowed)
+            {err_ast, [err_var]} = Error.runtime(ctx, value_not_allowed/1)
+            udef_msg = "optional or allow_undefined"
+            {udef_ast, [udef_var]} = Error.runtime(ctx, bad_option(udef_msg)/1)
+            ctx = chk_ctx |> Context.may_raise
+            ast = quote location: :keep do
+              case {unquote(allow_undef), unquote(ast)} do
+                {true, unquote(undefined_value) = result} -> result
+                {false, unquote(undefined_value) = unquote(err_var)} ->
+                  unquote(err_ast)
+                {unquote(udef_var), unquote(undefined_value)} ->
+                  unquote(udef_ast)
+                {_, unquote(val_var)} -> unquote(chk_ast)
+              end
+            end
+            {ast, ctx}
         end
     end
   end
@@ -186,7 +252,7 @@ defmodule Extract.Meta do
     allow_undefined = Options.get(ctx, opts, :allow_undefined, false)
     may_be_undefined = Context.may_be_undefined?(ctx)
     default = Options.fetch(ctx, opts, :default)
-    is_comptime = comptime_ast?(ast)
+    is_comptime = Ast.comptime?(ast)
     do_ctx = ctx
       |> Context.encapsulated(false)
       |> Context.may_be_missing(false)
@@ -371,6 +437,73 @@ defmodule Extract.Meta do
           end
         end
         {ast, ctx}
+      {false, allow_miss, true, allow_undef, true, :error, _, ast} ->
+        # may be missing or undefined without default, allowed at runtime
+        val_var = Macro.var(:value, __MODULE__)
+        {do_ast, do_ctx} = statments.(:do, val_var, do_ctx)
+        {udef_else, udef_ctx} = statments.(:else, undefined_value, else_ctx)
+        {miss_else, miss_ctx} = statments.(:else, missing_value, else_ctx)
+        miss_error = Error.runtime(ctx, missing_value)
+        udef_error = Error.runtime(ctx, undefined_value)
+        ctx = ctx
+          |> Context.merge([do_ctx, udef_ctx, miss_ctx])
+          |> Context.may_raise
+        miss_msg = "optional or allow_missing"
+        {miss_ast, [miss_var]} = Error.runtime(ctx, bad_option(miss_msg)/1)
+        udef_msg = "optional or allow_undefined"
+        {udef_ast, [udef_var]} = Error.runtime(ctx, bad_option(udef_msg)/1)
+        ast = quote location: :keep do
+          case {unquote(allow_miss), unquote(allow_undef), unquote(ast)} do
+            {_, true, unquote(undefined_value) } -> unquote(udef_else)
+            {_, false, unquote(undefined_value)} -> unquote(udef_error)
+            {_, unquote(udef_var), unquote(undefined_value)} ->
+              unquote(udef_ast)
+            {true, _, unquote(missing_value)} -> unquote(miss_else)
+            {false, _, unquote(missing_value)} -> unquote(miss_error)
+            {unquote(miss_var), _, unquote(missing_value)} ->
+              unquote(miss_ast)
+            {_, _, unquote(val_var)} -> unquote(do_ast)
+          end
+        end
+        {ast, ctx}
+      {false, allow_miss, true, _, false, :error, _, ast} ->
+        # may be missing without default, allowed at runtime
+        val_var = Macro.var(:value, __MODULE__)
+        {do_ast, do_ctx} = statments.(:do, val_var, do_ctx)
+        {miss_else, miss_ctx} = statments.(:else, missing_value, else_ctx)
+        miss_error = Error.runtime(ctx, missing_value)
+        ctx = ctx |> Context.merge([do_ctx, miss_ctx]) |> Context.may_raise
+        miss_msg = "optional or allow_missing"
+        {miss_ast, [miss_var]} = Error.runtime(ctx, bad_option(miss_msg)/1)
+        ast = quote location: :keep do
+          case {unquote(allow_miss), unquote(ast)} do
+            {true, unquote(missing_value)} -> unquote(miss_else)
+            {false, unquote(missing_value)} -> unquote(miss_error)
+            {unquote(miss_var), _, unquote(missing_value)} ->
+              unquote(miss_ast)
+            {_, unquote(val_var)} -> unquote(do_ast)
+          end
+        end
+        {ast, ctx}
+      {false, _, false, allow_undef, true, :error, _, ast} ->
+        # may be undefined without default, allowed at runtime
+        val_var = Macro.var(:value, __MODULE__)
+        {do_ast, do_ctx} = statments.(:do, val_var, do_ctx)
+        {udef_else, udef_ctx} = statments.(:else, undefined_value, else_ctx)
+        udef_error = Error.runtime(ctx, undefined_value)
+        ctx = ctx |> Context.merge([do_ctx, udef_ctx]) |> Context.may_raise
+        udef_msg = "optional or allow_undefined"
+        {udef_ast, [udef_var]} = Error.runtime(ctx, bad_option(udef_msg)/1)
+        ast = quote location: :keep do
+          case {unquote(allow_undef), unquote(ast)} do
+            {true, unquote(undefined_value) } -> unquote(udef_else)
+            {false, unquote(undefined_value)} -> unquote(udef_error)
+            {unquote(udef_var), unquote(undefined_value)} ->
+              unquote(udef_ast)
+            {_, unquote(val_var)} -> unquote(do_ast)
+          end
+        end
+        {ast, ctx}
       {true, _, _, true, true, :error, true, :undefined} ->
         # undefined at compile-time without default value but it is allowed
         statments.(:else, undefined_value, else_ctx)
@@ -552,12 +685,75 @@ defmodule Extract.Meta do
           end
         end
         {ast, ctx}
+      {true, allow_miss, true, allow_undef, true, :error, _, ast} ->
+        # may be missing or undefined without default, allowed at runtime
+        val_var = Macro.var(:value, __MODULE__)
+        {do_ast, do_ctx} = statments.(:do, val_var, do_ctx)
+        {udef_else, udef_ctx} = statments.(:else, undefined_value, else_ctx)
+        {miss_else, miss_ctx} = statments.(:else, missing_value, else_ctx)
+        miss_error = Error.runtime(ctx, missing_value)
+        udef_error = Error.runtime(ctx, undefined_value)
+        ctx = ctx
+          |> Context.merge([do_ctx, udef_ctx, miss_ctx])
+          |> Context.may_raise
+        miss_msg = "optional or allow_missing"
+        {miss_ast, [miss_var]} = Error.runtime(ctx, bad_option(miss_msg)/1)
+        udef_msg = "optional or allow_undefined"
+        {udef_ast, [udef_var]} = Error.runtime(ctx, bad_option(udef_msg)/1)
+        ast = quote location: :keep do
+          case {unquote(allow_miss), unquote(allow_undef), unquote(ast)} do
+            {_, true, :undefined} -> unquote(udef_else)
+            {_, false, :undefined} -> unquote(udef_error)
+            {_, unquote(udef_var), :undefined} -> unquote(udef_ast)
+            {true, _, :missing} -> unquote(miss_else)
+            {false, _, :missing} -> unquote(miss_error)
+            {unquote(miss_var), _, :missing} -> unquote(miss_ast)
+            {_, _, {:value, unquote(val_var)}} -> unquote(do_ast)
+          end
+        end
+        {ast, ctx}
+      {true, allow_miss, true, _, false, :error, _, ast} ->
+        # may be missing without default, allowed at runtime
+        val_var = Macro.var(:value, __MODULE__)
+        {do_ast, do_ctx} = statments.(:do, val_var, do_ctx)
+        {miss_else, miss_ctx} = statments.(:else, missing_value, else_ctx)
+        miss_error = Error.runtime(ctx, missing_value)
+        ctx = ctx |> Context.merge([do_ctx, miss_ctx]) |> Context.may_raise
+        miss_msg = "optional or allow_missing"
+        {miss_ast, [miss_var]} = Error.runtime(ctx, bad_option(miss_msg)/1)
+        ast = quote location: :keep do
+          case {unquote(allow_miss), unquote(ast)} do
+            {true, :missing} -> unquote(miss_else)
+            {false, :missing} -> unquote(miss_error)
+            {unquote(miss_var), _, :missing} -> unquote(miss_ast)
+            {_, {:value, unquote(val_var)}} -> unquote(do_ast)
+          end
+        end
+        {ast, ctx}
+      {true, _, false, allow_undef, true, :error, _, ast} ->
+        # may be undefined without default, allowed at runtime
+        val_var = Macro.var(:value, __MODULE__)
+        {do_ast, do_ctx} = statments.(:do, val_var, do_ctx)
+        {udef_else, udef_ctx} = statments.(:else, undefined_value, else_ctx)
+        udef_error = Error.runtime(ctx, undefined_value)
+        ctx = ctx |> Context.merge([do_ctx, udef_ctx]) |> Context.may_raise
+        udef_msg = "optional or allow_undefined"
+        {udef_ast, [udef_var]} = Error.runtime(ctx, bad_option(udef_msg)/1)
+        ast = quote location: :keep do
+          case {unquote(allow_undef), unquote(ast)} do
+            {true, :undefined} -> unquote(udef_else)
+            {false, :undefined} -> unquote(udef_error)
+            {unquote(udef_var), :undefined} -> unquote(udef_ast)
+            {_, {:value, unquote(val_var)}} -> unquote(do_ast)
+          end
+        end
+        {ast, ctx}
     end
   end
 
 
-  def comptime?(ast, ctx, statments) do
-    case comptime_ast?(ast) do
+  def comptime?(ast, ctx, statments, extra \\ []) do
+    case Ast.comptime?([ast, extra]) do
       true -> statments.(:do, ast, ctx)
       false -> statments.(:else, ast, ctx)
     end
@@ -721,32 +917,24 @@ defmodule Extract.Meta do
     {ast, Context.may_raise(ctx)}
   end
 
-  defp runtime_check_allowed(ctx, _value, allowed) do
-    Error.comptime(ctx, error({:bad_option, {:allowed, allowed}},
-      "invalid 'allowed' option value: #{inspect allowed}"))
+  defp runtime_check_allowed(ctx, ast, allowed) do
+    {error_ast, [error_var]} = Error.runtime(ctx, value_not_allowed/1)
+    ast = quote do
+      unquote(error_var) = unquote(ast)
+      is_allowed = case unquote(allowed) do
+        list when is_list(list) -> Enum.member?(list, unquote(error_var))
+        map when is_map(map) -> Map.has_key?(map, unquote(error_var))
+        other ->
+          raise Extract.Error,
+            reason: {:bad_option, {:allowed, other}},
+            message: "invalid 'allowed' option value: #{inspect other}"
+      end
+      case is_allowed do
+        true -> unquote(error_var)
+        false -> unquote(error_ast)
+      end
+    end
+    {ast, Context.may_raise(ctx)}
   end
-
-
-  defp comptime_ast?([]), do: true
-  defp comptime_ast?(ast) when is_atom(ast), do: true
-  defp comptime_ast?(ast) when is_number(ast), do: true
-  defp comptime_ast?(ast) when is_binary(ast), do: true
-  defp comptime_ast?([value | rem]) do
-    comptime_ast?(value) and comptime_ast?(rem)
-  end
-  defp comptime_ast?({:|, _, [a, b]}) do
-    comptime_ast?(a) and comptime_ast?(b)
-  end
-  defp comptime_ast?({key, val}) do
-    comptime_ast?(key) and comptime_ast?(val)
-  end
-  defp comptime_ast?({:{}, _, items}) when is_list(items) do
-    Enum.all?(for v <- items, do: comptime_ast?(v))
-  end
-  defp comptime_ast?({:%{}, _, items}) when is_list(items) do
-    Enum.all?(for v <- items, do: comptime_ast?(v))
-  end
-  defp comptime_ast?(_any), do: false
-
 
 end
