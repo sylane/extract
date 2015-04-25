@@ -1,18 +1,17 @@
 defmodule Extract.Meta.Context do
 
-  require Extract.Meta.Error
-
   alias Extract.Meta.Context
-  alias Extract.Meta.Error
 
 
-  defstruct [type_info: [],
-             missing_value: nil,
+  defstruct [missing_value: nil,
              undefined_value: nil,
              encapsulated: false,
              may_raise: false,
              may_be_undefined: true,
              may_be_missing: false,
+             current_format: nil,
+             extract_history: [],
+             receipt_history: [],
              macro_env: nil,
              caller_env: nil]
 
@@ -29,22 +28,39 @@ defmodule Extract.Meta.Context do
   end
 
 
-  def push_type_info(%Context{type_info: type_info} = ctx, tag, desc)
-   when is_atom(tag) and is_binary(desc) do
-    %Context{ctx | type_info: [{tag, desc} | type_info]}
+  def set_format(%Context{} = ctx, name) when is_atom(name) do
+    %Context{ctx | current_format: name}
+  end
+
+
+  def current_format(%Context{current_format: name}), do: name
+
+
+  def push_extract(%Context{extract_history: history} = ctx, name, desc)
+   when is_atom(name) and is_binary(desc) do
+    %Context{ctx | extract_history: [{name, desc} | history]}
+  end
+
+
+  def push_receipt(%Context{receipt_history: history} = ctx, from, to, desc)
+   when is_atom(from) and is_atom(to) and is_binary(desc) do
+    %Context{ctx | receipt_history: [{{from, to}, desc} | history]}
   end
 
 
   def properties(%Context{} = ctx) do
-    [type_info: ctx.type_info]
+    [current_format: ctx.current_format,
+     extract_history: ctx.extract_history,
+     receipt_history: ctx.receipt_history]
   end
 
 
   def merge(%Context{} = ctx, ctxs) when is_list(ctxs) do
-    %Context{ctx | encapsulated: merge_same(ctx, ctxs, :encapsulated),
+    %Context{ctx | encapsulated: merge_equal(ctx, ctxs, :encapsulated),
                    may_raise: merge_any(ctx, ctxs, :may_raise),
                    may_be_undefined: merge_any(ctx, ctxs, :may_be_undefined),
-                   may_be_missing: merge_any(ctx, ctxs, :may_be_missing)}
+                   may_be_missing: merge_any(ctx, ctxs, :may_be_missing),
+                   current_format: merge_if_same(ctx, ctxs, :current_format)}
   end
 
 
@@ -97,9 +113,9 @@ defmodule Extract.Meta.Context do
 
   def eval_quoted(ctx, ast, bindings \\ [])
 
-  def eval_quoted(%Context{caller_env: nil} = ctx, _ast, _bindings) do
-    Error.comptime(ctx, error({:cannot_eval, :no_valler_env},
-      "cannot eval quoted without the caller environment"))
+  def eval_quoted(%Context{caller_env: nil}, _ast, _bindings) do
+    msg =  "cannot eval quoted without the caller environment"
+    raise CompileError, description: msg, file: "", line: 0
   end
 
   def eval_quoted(%Context{caller_env: env}, ast, bindings) do
@@ -112,11 +128,11 @@ defmodule Extract.Meta.Context do
   end
 
 
-  defp merge_same(ctx, contexts, field) do
+  defp merge_equal(ctx, contexts, field) do
     try do
       map = fn %Context{} = c -> Map.get(c, field) end
       reduce = fn same, same -> same
-                  _new, _last -> throw Extract.Error
+                  _new, _last -> raise Extract.Error
       end
       subtypes = for c <- contexts do
         Keyword.get(Context.properties(c), :type_info)
@@ -126,9 +142,35 @@ defmodule Extract.Meta.Context do
     rescue
       Enum.EmptyError -> Map.get(ctx, field)
       Extract.Error ->
-        Error.comptime ctx,
-          error({:context_merge_error, field},
-            "multiple sub-contexts with different value for '#{field}' flag")
+        msg = "multiple sub-contexts with different value for '#{field}' flag"
+        raise CompileError, description: msg, file: "", line: 0
+    end
+  end
+
+
+  defp merge_if_same(ctx, contexts, field, default \\ nil) do
+    try do
+      map = fn %Context{} = c -> {:ok, Map.get(c, field)} end
+      reduce = fn {:ok, value}, {:ok, value} -> {:ok, value}
+                  {:ok, nil}, {:ok, value}  -> {:ok, value}
+                  {:ok, value}, {:ok, nil} -> {:ok, value}
+                  {:ok, _new}, {:ok, _last} -> :error
+                  :error, _any -> :error
+                  _any, :error -> :error
+      end
+      subtypes = for c <- contexts do
+        Keyword.get(Context.properties(c), :type_info)
+      end
+      type = Keyword.get(Context.properties(ctx), :type_info)
+      case Enum.reduce(Enum.map(contexts, map), reduce) do
+        {:ok, value} -> value
+        :error -> default
+      end
+    rescue
+      Enum.EmptyError -> Map.get(ctx, field)
+      Extract.Error ->
+        msg = "multiple sub-contexts with different value for '#{field}' flag"
+        raise CompileError, description: msg, file: "", line: 0
     end
   end
 

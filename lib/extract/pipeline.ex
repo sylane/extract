@@ -1,6 +1,9 @@
 defmodule Extract.Pipeline do
 
+  require Extract.Meta.Ast
+
   alias Extract.Meta.Context
+  alias Extract.Meta.Ast
 
 
   @default_undefined nil
@@ -65,6 +68,7 @@ defmodule Extract.Pipeline do
   end
 
   defmacro condition(ast, ctx, {f, c, a}, body \\ []) do
+    args = if is_list(a), do: a, else: []
     ast_var = Macro.var(:original_ast, __MODULE__)
     ctx_var = Macro.var(:original_ctx, __MODULE__)
     do_statments = compose(ast_var, ctx_var, body[:do])
@@ -77,7 +81,7 @@ defmodule Extract.Pipeline do
           unquote(else_statments)
       end
     end
-    {f, c, [ast, ctx, statments | a]}
+    {f, c, [ast, ctx] ++ args ++ [statments]}
   end
 
 
@@ -99,13 +103,13 @@ defmodule Extract.Pipeline do
 
 
   def select(ctx, key, choices, otherwise) do
-    if is_atom(key) do
-      case {Keyword.fetch(choices, key), otherwise} do
-        {{:ok, {:ok, result}}, _} -> result
-        {{:ok, {:error, {error, stacktrace}}}, _} ->
+    if Ast.comptime?(key) do
+      case {List.keyfind(choices, key, 0), otherwise} do
+        {{_, {:ok, result}}, _} -> result
+        {{_, {:error, {error, stacktrace}}}, _} ->
           reraise error, stacktrace
-        {:error, {:ok, result}} -> result
-        {:error, {:error, {error, stacktrace}}} ->
+        {nil, {:ok, result}} -> result
+        {nil, {:error, {error, stacktrace}}} ->
           reraise error, stacktrace
       end
     else
@@ -191,7 +195,8 @@ defmodule Extract.Pipeline do
   end
 
   defp compose(ast, ctx, {f, c, a}, kv) do
-    statment = {f, c, [ast, ctx | a]}
+    args = if is_list(a), do: a, else: []
+    statment = {f, c, [ast, ctx | args]}
     case Keyword.get(kv, :finalize, false) do
       true ->
         quote location: :keep do

@@ -99,13 +99,13 @@ defmodule Extract.Meta.Error do
       raise Extract.Error,
         reason: {:bad_receipt, {unquote(from), unquote(to)}},
         message: "invalid receipt from #{inspect unquote(from)} "
-                 <> "to %{inspect unquote(to)}"
+                 <> "to #{inspect unquote(to)}"
     end
   end
 
 
   def comptime_undefined_value(kv \\ []) do
-    {tag, desc} = type_info(kv)
+    {tag, desc} = extract_info(kv)
     reason = {:undefined_value, tag}
     message = "undefined #{desc}value"
     raise Extract.Error, reason: reason, message: message
@@ -113,7 +113,7 @@ defmodule Extract.Meta.Error do
 
 
   defmacro runtime_undefined_value(kv \\ []) do
-    {tag, desc} = type_info(kv)
+    {tag, desc} = extract_info(kv)
     reason = {:undefined_value, tag}
     message = "undefined #{desc}value"
     quote do
@@ -123,7 +123,7 @@ defmodule Extract.Meta.Error do
 
 
   def comptime_missing_value(kv \\ []) do
-    {tag, desc} = type_info(kv)
+    {tag, desc} = extract_info(kv)
     reason = {:missing_value, tag}
     message = "missing #{desc}value"
     raise Extract.Error, reason: reason, message: message
@@ -131,7 +131,7 @@ defmodule Extract.Meta.Error do
 
 
   defmacro runtime_missing_value(kv \\ []) do
-    {tag, desc} = type_info(kv)
+    {tag, desc} = extract_info(kv)
     reason = {:missing_value, tag}
     message = "missing #{desc}value"
     quote do
@@ -141,7 +141,7 @@ defmodule Extract.Meta.Error do
 
 
   def comptime_value_not_allowed(value, kv \\ []) do
-    {tag, desc} = type_info(kv)
+    {tag, desc} = extract_info(kv)
     reason = {:value_not_allowed, tag}
     message = "#{desc}value not allowed: #{Macro.to_string(value)}"
     raise Extract.Error, reason: reason, message: message
@@ -149,7 +149,7 @@ defmodule Extract.Meta.Error do
 
 
   defmacro runtime_value_not_allowed(value, kv \\ []) do
-    {tag, desc} = type_info(kv)
+    {tag, desc} = extract_info(kv)
     reason = {:value_not_allowed, tag}
     message = "#{desc}value not allowed: "
     quote do
@@ -161,7 +161,7 @@ defmodule Extract.Meta.Error do
 
 
   def comptime_bad_value(value, kv \\ []) do
-    {tag, desc} = type_info(kv)
+    {tag, desc} = extract_info(kv)
     reason = {:bad_value, {tag, :bad_type}}
     message = "bad #{desc}value: #{Macro.to_string(value)}"
     raise Extract.Error, reason: reason, message: message
@@ -169,7 +169,7 @@ defmodule Extract.Meta.Error do
 
 
   defmacro runtime_bad_value(value, kv \\ []) do
-    {tag, desc} = type_info(kv)
+    {tag, desc} = extract_info(kv)
     reason = {:bad_value, {tag, :bad_type}}
     message = "bad #{desc}value: "
     quote do
@@ -181,7 +181,7 @@ defmodule Extract.Meta.Error do
 
 
   def comptime_value_too_big(value, max, kv \\ []) do
-    {tag, desc} = type_info(kv)
+    {tag, desc} = extract_info(kv)
     reason = {:bad_value, {tag, :too_big}}
     message = "#{desc}value bigger than #{Macro.to_string(max)}: "
               <> "#{Macro.to_string(value)}"
@@ -190,7 +190,7 @@ defmodule Extract.Meta.Error do
 
 
   defmacro runtime_value_too_big(value, max, kv \\ []) do
-    {tag, desc} = type_info(kv)
+    {tag, desc} = extract_info(kv)
     reason = {:bad_value, {tag, :too_big}}
     message = "#{desc}value bigger than"
     quote do
@@ -202,7 +202,7 @@ defmodule Extract.Meta.Error do
 
 
   def comptime_value_too_small(value, min, kv \\ []) do
-    {tag, desc} = type_info(kv)
+    {tag, desc} = extract_info(kv)
     reason = {:bad_value, {tag, :too_small}}
     message = "#{desc}value smaller than #{Macro.to_string(min)}: "
               <> "#{Macro.to_string(value)}"
@@ -211,7 +211,7 @@ defmodule Extract.Meta.Error do
 
 
   defmacro runtime_value_too_small(value, min, kv \\ []) do
-    {tag, desc} = type_info(kv)
+    {tag, desc} = extract_info(kv)
     reason = {:bad_value, {tag, :too_small}}
     message = "#{desc}value smaller than"
     quote do
@@ -223,7 +223,7 @@ defmodule Extract.Meta.Error do
 
 
   def comptime_distillation_error(value, kv \\ []) do
-    {from_tag, to_tag, desc} = conv_info(kv)
+    {from_tag, to_tag, desc} = receipt_info(kv)
     reason = {:distillation_error, {from_tag, to_tag}}
     message = "error converting value#{desc}: #{Macro.to_string(value)}"
     raise Extract.Error, reason: reason, message: message
@@ -231,7 +231,7 @@ defmodule Extract.Meta.Error do
 
 
   defmacro runtime_distillation_error(value, kv \\ []) do
-    {from_tag, to_tag, desc} = conv_info(kv)
+    {from_tag, to_tag, desc} = receipt_info(kv)
     reason = {:distillation_error, {from_tag, to_tag}}
     message = "error converting value#{desc}: "
     quote do
@@ -242,22 +242,20 @@ defmodule Extract.Meta.Error do
   end
 
 
-  defp type_info(kv) do
-    case Keyword.fetch(kv, :type_info) do
+  defp extract_info(kv) do
+    case Keyword.fetch(kv, :extract_history) do
       :error -> {:unknwon, ""}
       {:ok, []} -> {:unknown, ""}
-      {:ok, [{tag, desc} | _]} -> {tag, "#{desc} "}
+      {:ok, [{name, desc} | _]} -> {name, "#{desc} "}
     end
   end
 
 
-  defp conv_info(kv) do
-    case Keyword.fetch(kv, :type_info) do
+  defp receipt_info(kv) do
+    case Keyword.fetch(kv, :receipt_history) do
       :error -> {:unknwon, :unknwon, ""}
       {:ok, []} -> {:unknown, :unknwon, ""}
-      {:ok, [{to_tag, to_desc}]} -> {:unknown, to_tag, " to #{to_desc}"}
-      {:ok, [{to_tag, to_desc}, {from_tag, from_desc} | _]} ->
-        {from_tag, to_tag, " from #{from_desc} to #{to_desc}"}
+      {:ok, [{{from, to}, desc} | _]} -> {from, to, " from #{desc}"}
     end
   end
 

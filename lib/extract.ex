@@ -9,6 +9,7 @@ defmodule Extract do
   require Extract.Meta.Debug
   require Extract.Meta.Error
   require Extract.Meta.Extracts
+  require Extract.Meta.Receipts
   require Extract.Meta.Mode
   require Extract.Meta.Options
   require Extract.Util
@@ -17,13 +18,15 @@ defmodule Extract do
   require Extract.Error
 
   alias Extract.Meta
-  alias Extract.Meta.Ast
   alias Extract.Meta.Extracts
+  alias Extract.Meta.Receipts
+  alias Extract.Meta.Mode
+  alias Extract.Meta.Error
 
 
   defmacro validate!(value, format, opts \\ [], body \\ []) do
-    #FIXME: handle context errors (call from non-managed modules)
-    extracts = Extracts.all(__CALLER__.module)
+    module = Mode.module(__CALLER__)
+    extracts = Extracts.all(module)
     _ast = pipeline value, env: __ENV__, caller: __CALLER__ do
       _meta_validate! format, opts, body, extracts
       Meta.terminate!
@@ -35,8 +38,8 @@ defmodule Extract do
 
 
   defmacro validate(value, format, opts \\ [], body \\ []) do
-    #FIXME: handle context errors (call from non-managed modules)
-    extracts = Extracts.all(__CALLER__.module)
+    module = Mode.module(__CALLER__)
+    extracts = Extracts.all(module)
     _ast = pipeline value, env: __ENV__, caller: __CALLER__ do
       _meta_validate! format, opts, body, extracts
       Meta.terminate
@@ -48,11 +51,49 @@ defmodule Extract do
 
 
   defmacro _validate!(ast, ctx, fmt, opts, body) when is_atom(fmt) do
-    #FIXME: handle context errors (call from non-managed modules)
-    case Extracts.fetch(__CALLER__.module, fmt) do
-      :error -> Meta.bad_format_error(fmt)
+    module = Mode.module(__CALLER__, :defining)
+    case Extracts.fetch(module, fmt) do
+      :error -> Error.comptime_bad_format(fmt)
       {:ok, extract} ->
-        Ast.call(extract.mod, extract.fun, [ast, ctx, opts, body])
+        Extracts.runtime(extract, [ast, ctx, fmt, opts, body])
+    end
+  end
+
+
+defmacro distill!(value, from, to, opts \\ [], body \\ []) do
+    module = Mode.module(__CALLER__)
+    receipts = Receipts.all(module)
+    _ast = pipeline value, env: __ENV__, caller: __CALLER__ do
+      _meta_distill! from, [], [], to, opts, body, receipts
+      Meta.terminate!
+    rescue
+      Meta.comptime_rescue!
+    end
+    # Extract.Meta.Debug.ast(_ast, env: __ENV__, caller: __CALLER__)
+  end
+
+
+  defmacro distill(value, from, to, opts \\ [], body \\ []) do
+    module = Mode.module(__CALLER__)
+    receipts = Receipts.all(module)
+    _ast = pipeline value, env: __ENV__, caller: __CALLER__ do
+      _meta_distill! from, [], [], to, opts, body, receipts
+      Meta.terminate
+    rescue
+      Meta.comptime_rescue
+    end
+    # Extract.Meta.Debug.ast(_ast, env: __ENV__, caller: __CALLER__)
+  end
+
+
+  defmacro _distill!(ast, ctx, from, from_opts, from_body, to, to_opts, to_body)
+   when is_atom(from) and is_atom(to) do
+    module = Mode.module(__CALLER__)
+    case Receipts.fetch(module, from, to) do
+      :error -> Error.comptime_bad_receipt_error(from, to)
+      {:ok, receipt} ->
+        args = [ast, ctx, from, from_opts, from_body, to, to_opts, to_body]
+        Receipts.runtime(receipt, args)
     end
   end
 
@@ -84,13 +125,34 @@ defmodule Extract do
     end
     choices = for x <- extracts do
       try do
-        {x.name, {:ok, Extracts.call(x, ast, ctx, opts, body)}}
+        {x.name, {:ok, Extracts.comptime(x, [ast, ctx, x.name, opts, body])}}
       rescue
         e in Extract.Error ->
           {x.name, {:error, {e, System.stacktrace()}}}
       end
     end
     Extract.Pipeline.select(ctx, fmt, choices, otherwise)
+  end
+
+
+  defp _meta_distill!(ast, ctx,
+   from, from_opts, from_body, to, to_opts, to_body, receipts) do
+    otherwise = try do
+      {:ok, Meta.bad_receipt_error(nil, ctx, from, to)}
+    rescue
+      e in Extract.Error -> {:error, {e, System.stacktrace()}}
+    end
+    choices = for r <- receipts do
+      key = {r.from, r.to}
+      try do
+        args = [ast, ctx, r.from, from_opts, from_body, r.to, to_opts, to_body]
+        {key, {:ok, Receipts.comptime(r, args)}}
+      rescue
+        e in Extract.Error ->
+          {key, {:error, {e, System.stacktrace()}}}
+      end
+    end
+    Extract.Pipeline.select(ctx, {from, to}, choices, otherwise)
   end
 
 end

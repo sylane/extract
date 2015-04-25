@@ -1,12 +1,12 @@
-defmodule Extract.Meta.Extracts do
+defmodule Extract.Meta.Receipts do
 
-  alias Extract.Meta.Extracts
+  alias Extract.Meta.Receipts
   alias Extract.Meta.Ast
 
 
-  defstruct [:name, :desc, :parent, :mod, :fun, :opts]
+  defstruct [:from, :to, :desc, :parent, :mod, :fun]
 
-  @attribute_name :registered_extracts
+  @attribute_name :registered_receipts
 
 
   def setup(module, _mode) do
@@ -14,16 +14,16 @@ defmodule Extract.Meta.Extracts do
   end
 
 
-  def new(name, desc, parent, fun, opts)
-   when is_atom(name) and is_binary(desc) and is_atom(fun) and is_list(opts) do
+  def new(from, to, desc, parent, fun)
+   when is_atom(from) and is_atom(to) and is_binary(desc) and is_atom(fun) do
     module = Module.concat(parent, :Meta)
-    %Extracts{name: name, desc: desc, parent: parent,
-              mod: module, fun: fun, opts: opts}
+    %Receipts{from: from, to: to, desc: desc, parent: parent,
+              mod: module, fun: fun}
   end
 
 
-  def register(name, desc, module, fun, opts \\ []) do
-    append(module, new(name, desc, module, fun, opts))
+  def register(from, to, desc, module, fun) do
+    append(module, new(from, to, desc, module, fun))
   end
 
 
@@ -46,22 +46,24 @@ defmodule Extract.Meta.Extracts do
   end
 
 
-  def append(module, extract) do
-    case fetch(module, extract.name) do
-      :error -> _append(module, extract)
-      {:ok, ^extract} -> :ok
+  def append(module, receipt) do
+    case fetch(module, receipt.from, receipt.to) do
+      :error -> _append(module, receipt)
+      {:ok, ^receipt} -> :ok
       {:ok, old} ->
+        key = {receipt.from, receipt.to}
         raise Extract.Error,
-          reason: {:extract_already_defined, {extract.name, old.parent}},
-          message: "extract #{extract.desc} already "
+          reason: {:receipt_already_defined, {key, old.parent}},
+          message: "receipt #{receipt.desc} already "
                    <> "defined in module #{inspect old.parent}"
     end
   end
 
 
-  def fetch(module, name) do
+  def fetch(module, from, to) do
+    key = {from, to}
     collection = Module.get_attribute(module, @attribute_name)
-    case List.keyfind(collection, name, 0) do
+    case List.keyfind(collection, key, 0) do
       nil -> :error
       {_, result} -> {:ok, result}
     end
@@ -77,18 +79,20 @@ defmodule Extract.Meta.Extracts do
     Ast.call(extract.mod, extract.fun, args)
   end
 
-  def generate_registrations(extracts) do
-    for x <- extracts do
-      escaped = Macro.escape(x)
+
+  def generate_registrations(receipts) do
+    for r <- receipts do
+      escaped = Macro.escape(r)
       quote do
-        Extracts.append(__MODULE__, unquote(escaped))
+        Receipts.append(__MODULE__, unquote(escaped))
       end
     end
   end
 
 
-  defp _append(module, extract) do
-    Module.put_attribute(module, @attribute_name, {extract.name, extract})
+  defp _append(module, receipt) do
+    key = {receipt.from, receipt.to}
+    Module.put_attribute(module, @attribute_name, {key, receipt})
   end
 
 end

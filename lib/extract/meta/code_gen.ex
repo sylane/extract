@@ -1,6 +1,9 @@
 defmodule Extract.Meta.CodeGen do
 
+  alias Extract.Meta.Mode
   alias Extract.Meta.Extracts
+  alias Extract.Meta.Receipts
+  alias Extract.Meta.Mode
   alias Extract.Meta.Ast
 
 
@@ -18,22 +21,31 @@ defmodule Extract.Meta.CodeGen do
 
 
   defmacro using_macro() do
-    extracts = Extracts.all(__CALLER__.module)
-    required_modules = Extracts.required_modules(__CALLER__.module)
+    module = Mode.module(__CALLER__, :defining)
+    extracts = Extracts.all(module)
+    receipts = Receipts.all(module)
+    extracts_requirment = Extracts.required_modules(module)
+    receipts_requirment = Receipts.required_modules(module)
+    required_modules = extracts_requirment ++ receipts_requirment
+    requirments = Enum.into(Enum.into(required_modules, HashSet.new()), [])
     escaped_extracts = for x <- extracts, do: Macro.escape(x)
+    escaped_receipts = for r <- receipts, do: Macro.escape(r)
     _ast = quote do
       defmacro __using__(_kv) do
-        required_modules = unquote(required_modules)
+        requirments = unquote(requirments)
         extracts = unquote(escaped_extracts)
+        receipts = unquote(escaped_receipts)
         extracts_ast = Extracts.generate_registrations(extracts)
-        requirments_ast = for mod <- unquote(required_modules) do
+        receipts_ast = Receipts.generate_registrations(receipts)
+        requirments_ast = for mod <- unquote(requirments) do
           quote do: require unquote(mod)
         end
         _ast = quote do
           require Extract.Meta.Mode
-          Extract.Meta.Mode.maybe_start_using()
+          Mode.maybe_start_using()
           unquote_splicing(requirments_ast)
           unquote_splicing(extracts_ast)
+          unquote_splicing(receipts_ast)
         end
         # Extract.Meta.Debug.ast(_ast, env: __ENV__, caller: __CALLER__)
       end
@@ -43,8 +55,9 @@ defmodule Extract.Meta.CodeGen do
 
 
   defmacro validation_functions() do
+    module = Mode.module(__CALLER__, :defining)
+    specs = validation_specs(module)
     value_var = Macro.var(:value, __MODULE__)
-    specs = validation_specs(__CALLER__.module)
     _ast = for {macro_mod, macro_fun, gen_fun, fun_specs} <- specs do
       fun_statements = for {fmt, allowed, opts_specs} <- fun_specs do
       # fun_statements = for {fmt, allowed, opts_specs} <- [hd(fun_specs)] do

@@ -13,8 +13,18 @@ defmodule Extract.Meta do
   alias Extract.Meta.Ast
 
 
-  def type_info(ast, ctx, tag, description) do
-    {ast, Context.push_type_info(ctx, tag, description)}
+  def push_extract(ast, ctx, name, description) do
+    {ast, Context.push_extract(ctx, name, description)}
+  end
+
+
+  def push_receipt(ast, ctx, from, to, description) do
+    {ast, Context.push_receipt(ctx, from, to, description)}
+  end
+
+
+  def set_format(ast, ctx, name) do
+    {ast, Context.set_format(ctx, name)}
   end
 
 
@@ -243,7 +253,8 @@ defmodule Extract.Meta do
   end
 
 
-  def defined?(ast, ctx, statments, opts) do
+  def defined?(ast, ctx, opts, statments \\ nil) do
+    statments = statments || fn (_, ast, ctx) -> {ast, ctx} end
     undefined_value = Context.undefined_value(ctx)
     missing_value = Context.missing_value(ctx)
     encapsulated = Context.encapsulated?(ctx)
@@ -284,6 +295,9 @@ defmodule Extract.Meta do
         statments.(:else, default, default_ctx)
       {false, _, _, _, _, _, true, value} ->
         # defined at compile time
+        statments.(:do, value, do_ctx)
+      {false, _, false, _, false, _, _, value} ->
+        # defined at runtime and cannot be missing or undefined
         statments.(:do, value, do_ctx)
       {false, _, true, _, true, {:ok, default}, _, ast} ->
         # may be missing or undefined but there is a default value
@@ -525,6 +539,9 @@ defmodule Extract.Meta do
       {true, _, _, _, _, _, true, {:value, value}} ->
         # defined at compile time
         statments.(:do, value, do_ctx)
+      {false, _, false, _, false, _, _, {:value, value}} ->
+        # defined at runtime and cannot be missing or undefined
+        statments.(:do, value, do_ctx)
       {true, _, false, _, false, _, _, ast} ->
         # cannot be undefined or missing, just unpack the value
         val_var = Macro.var(:value, __MODULE__)
@@ -752,10 +769,20 @@ defmodule Extract.Meta do
   end
 
 
-  def comptime?(ast, ctx, statments, extra \\ []) do
+  def is_comptime?(ast, ctx, extra, statments \\ nil) do
+    statments = statments || fn (_, ast, ctx) -> {ast, ctx} end
     case Ast.comptime?([ast, extra]) do
       true -> statments.(:do, ast, ctx)
       false -> statments.(:else, ast, ctx)
+    end
+  end
+
+
+  def is_current_format?(ast, ctx, name, statments \\ nil) do
+    statments = statments || fn (_, ast, ctx) -> {ast, ctx} end
+    case Context.current_format(ctx) do
+      ^name -> statments.(:do, ast, ctx)
+      _other -> statments.(:else, ast, ctx)
     end
   end
 
@@ -855,7 +882,7 @@ defmodule Extract.Meta do
     case {is_atom(from), is_atom(to)} do
       {true, true} -> Error.comptime(ctx, bad_receipt(from, to))
       _ ->
-        {Error.runtime(ctx, bad_format(from, to)), Context.may_raise(ctx)}
+        {Error.runtime(ctx, bad_receipt(from, to)), Context.may_raise(ctx)}
     end
   end
 

@@ -8,9 +8,12 @@ defmodule Test do
 
 
 
-  def test() do
-    v = 3
-    Extract.validate!(v, :integer)
+  def test(v, from, to) do
+    # v = 3.4
+    # from = :float
+    # to = :integer
+    Extract.validate(v, from)
+    Extract.distill(v, from, to)
   end
 
 end
