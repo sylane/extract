@@ -53,20 +53,41 @@ defmodule Extract.Meta.Error do
   end
 
 
-  def comptime_bad_option(value, name, _kv \\ []) do
-    reason = {:bad_option, name}
-    message = "invalid #{name} value: #{inspect value}"
+  def comptime_bad_option(value, name, kv \\ []) do
+    {tag, desc} = extract_info(kv)
+    reason = {:bad_option, {tag, name}}
+    message = "invalid #{desc}#{inspect name} option value: #{inspect value}"
     raise Extract.Error, reason: reason, message: message
   end
 
 
-  defmacro runtime_bad_option(value, name, _kv \\ []) do
-    reason = {:bad_format, name}
-    message = "invalid #{name} option value: "
+  defmacro runtime_bad_option(value, name, kv \\ []) do
+    {tag, desc} = extract_info(kv)
+    reason = {:bad_option, {tag, name}}
+    message = "invalid #{desc}#{inspect name} option value: "
     quote do
       raise Extract.Error,
         reason: unquote(reason),
         message: unquote(message) <> inspect(unquote(value))
+    end
+  end
+
+
+  def comptime_option_not_allowed(name, kv \\ []) do
+    {tag, desc} = extract_info(kv, " for ", "")
+    reason = {:option_not_allowed, {tag, name}}
+    message = "option #{inspect name} not allowed#{desc}"
+    raise Extract.Error, reason: reason, message: message
+  end
+
+
+  defmacro runtime_option_not_allowed(name, kv \\ []) do
+    {tag, desc} = extract_info(kv, " for ", "")
+    reason = {:option_not_allowed, {tag, name}}
+    message = "option #{inspect name} not allowed#{desc}"
+    quote do
+      raise Extract.Error,
+        reason: unquote(reason), message: unquote(message)
     end
   end
 
@@ -223,7 +244,7 @@ defmodule Extract.Meta.Error do
 
 
   def comptime_distillation_error(value, kv \\ []) do
-    {from_tag, to_tag, desc} = receipt_info(kv)
+    {from_tag, to_tag, desc} = receipt_info(kv, " from ", "")
     reason = {:distillation_error, {from_tag, to_tag}}
     message = "error converting value#{desc}: #{Macro.to_string(value)}"
     raise Extract.Error, reason: reason, message: message
@@ -231,7 +252,7 @@ defmodule Extract.Meta.Error do
 
 
   defmacro runtime_distillation_error(value, kv \\ []) do
-    {from_tag, to_tag, desc} = receipt_info(kv)
+    {from_tag, to_tag, desc} = receipt_info(kv, " from ", "")
     reason = {:distillation_error, {from_tag, to_tag}}
     message = "error converting value#{desc}: "
     quote do
@@ -242,20 +263,20 @@ defmodule Extract.Meta.Error do
   end
 
 
-  defp extract_info(kv) do
+  defp extract_info(kv, prefix \\ "", postfix \\ " ") do
     case Keyword.fetch(kv, :extract_history) do
       :error -> {:unknwon, ""}
       {:ok, []} -> {:unknown, ""}
-      {:ok, [{name, desc} | _]} -> {name, "#{desc} "}
+      {:ok, [{name, desc} | _]} -> {name, prefix <> desc <> postfix}
     end
   end
 
 
-  defp receipt_info(kv) do
+  defp receipt_info(kv, prefix, postfix) do
     case Keyword.fetch(kv, :receipt_history) do
       :error -> {:unknwon, :unknwon, ""}
       {:ok, []} -> {:unknown, :unknwon, ""}
-      {:ok, [{{from, to}, desc} | _]} -> {from, to, " from #{desc}"}
+      {:ok, [{{from, to}, desc} | _]} -> {from, to, prefix <> desc <> postfix}
     end
   end
 

@@ -7,7 +7,7 @@ defmodule Extract.Meta.Options do
   alias Extract.Meta.Error
 
 
-  def validate(ctx, opts, allowed) do
+  def validate!(ctx, opts, allowed) do
     _validate(ctx, resolve(ctx, opts), allowed)
   end
 
@@ -41,6 +41,52 @@ defmodule Extract.Meta.Options do
   end
 
 
+  def to2from(ctx_or_env, opts) do
+    # Deduce the distillation options for the source extract given the options
+    # of the target extract. e.g. If the target extract have a default value,
+    # the source must be optional
+    take_options(ctx_or_env, resolve(ctx_or_env, opts, "options"),
+                [:optional, :allow_undefined, :allow_missing])
+  end
+
+
+  defp take_options(ctx_or_env, kv, opts) do
+    take_options(ctx_or_env, kv, opts, [])
+  end
+
+
+  defp take_options(_ctx_or_env, _kv, [], acc), do: acc
+
+  defp take_options(ctx_or_env, kv, [:optional | opts], acc) do
+    case Keyword.fetch(kv, :optional) do
+      {:ok, value} ->
+        case resolve(ctx_or_env, value, :optional) do
+          true -> take_options(ctx_or_env, kv, opts, [{:optional, true} | acc])
+          false ->
+            case Keyword.fetch(kv, :default) do
+              :error ->
+                take_options(ctx_or_env, kv, opts, [{:optional, false} | acc])
+              {:ok, _any} ->
+                take_options(ctx_or_env, kv, opts, [{:optional, true} | acc])
+            end
+        end
+      :error ->
+        case Keyword.fetch(kv, :default) do
+          :error -> take_options(ctx_or_env, kv, opts, acc)
+          {:ok, _any} ->
+            take_options(ctx_or_env, kv, opts, [{:optional, true} | acc])
+        end
+    end
+  end
+
+  defp take_options(ctx_or_env, kv, [opt | opts], acc) do
+    case Keyword.fetch(kv, opt) do
+      :error -> take_options(ctx_or_env, kv, opts, acc)
+      {:ok, value} -> take_options(ctx_or_env, kv, opts, [{opt, value} | acc])
+    end
+  end
+
+
   defp allowed?(allowed, :allow_undefined) do
     Enum.member?(allowed, :optional) or Enum.member?(allowed, :allow_undefined)
   end
@@ -60,15 +106,11 @@ defmodule Extract.Meta.Options do
    when is_atom(name) and is_list(allowed) do
     value = resolve(ctx, quoted, name)
     case valid?(name, value) do
-      false ->
-        {:error, {{:bad_option, {name, value}},
-                  "invalid option #{name}: #{inspect value}"}}
+      false -> Error.comptime(ctx, bad_option(value, name))
       true ->
         case allowed?(allowed, name) do
           true -> _validate(ctx, opts, allowed)
-          false ->
-            {:error, {{:option_not_allowed, name},
-                      "option #{name} is not allowed"}}
+          false -> Error.comptime(ctx, option_not_allowed(name))
         end
     end
   end
@@ -105,24 +147,30 @@ defmodule Extract.Meta.Options do
   end
 
 
-  defp resolve(ctx, quoted, key \\ nil)
+  defp resolve(ctx_or_env, quoted, key \\ nil)
 
-  defp resolve(ctx, {:@, _, _} = quoted, key) do
+  defp resolve(ctx_or_env, {:@, _, _} = quoted, key) do
     try do
-      {value, []} = Context.eval_quoted(ctx, quoted)
-      value
+      case ctx_or_env do
+        %Context{} = ctx ->
+          {value, []} = Context.eval_quoted(ctx, quoted)
+          value
+        %Macro.Env{} = env ->
+          {value, []} = Code.eval_quoted(quoted, [], env)
+          value
+      end
     rescue
       [MatchError, CompileError] ->
         if key == nil do
-          Error.comptime(ctx, error(:bad_options,
-            "invalid compile-time options: #{inspect quoted}"))
+          raise CompileError,
+            description: "invalid options: #{inspect quoted}"
         else
-          Error.comptime(ctx, error({:bad_option, key},
-            "invalid compile-time option #{key}: #{inspect quoted}"))
+          raise CompileError,
+            description: "invalid option #{key}: #{inspect quoted}"
         end
     end
   end
 
-  defp resolve(_ctx, value, _key), do: value
+  defp resolve(_ctx_or_env, value, _key), do: value
 
 end

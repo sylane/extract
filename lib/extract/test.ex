@@ -12,8 +12,8 @@ defmodule Test do
     # v = 3.4
     # from = :float
     # to = :integer
-    Extract.validate(v, from)
-    Extract.distill(v, from, to)
+    # Extract.validate(v, from)
+    Extract.distill!(nil, from, to, optional: true)
   end
 
 end

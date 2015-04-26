@@ -7,8 +7,10 @@ defmodule Extract.Meta.CodeGen do
   alias Extract.Meta.Ast
 
 
-  @gen_valid :generate_validation
-  @gen_valid! :generate_validation!
+  @gen_extracts  :generate_extract_list
+  @gen_receipts  :generate_receipt_list
+  @gen_validate  :generate_validation
+  @gen_validate! :generate_validation!
 
 
   defmacro module_requirements(_mode) do
@@ -49,6 +51,35 @@ defmodule Extract.Meta.CodeGen do
         end
         # Extract.Meta.Debug.ast(_ast, env: __ENV__, caller: __CALLER__)
       end
+    end
+    # Extract.Meta.Debug.ast(_ast, env: __ENV__, caller: __CALLER__)
+  end
+
+
+  defmacro list_functions() do
+    module = Mode.module(__CALLER__, :defining)
+    ast = case Module.get_attribute(module, @gen_extracts) do
+      nil -> []
+      name ->
+        extracts = Extracts.local(module)
+        extract_ids = for x <- extracts, do: x.name
+        ast = quote do
+          def unquote(name)(), do: unquote(extract_ids)
+        end
+        [ast]
+    end
+    ++ case Module.get_attribute(module, @gen_receipts) do
+      nil -> []
+      name ->
+        receipts = Receipts.local(module)
+        receipt_ids = for r <- receipts, do: {r.from, r.to}
+        ast = quote do
+          def unquote(name)(), do: unquote(receipt_ids)
+        end
+        [ast]
+    end
+    _ast = quote do
+      unquote_splicing(ast)
     end
     # Extract.Meta.Debug.ast(_ast, env: __ENV__, caller: __CALLER__)
   end
@@ -106,7 +137,7 @@ defmodule Extract.Meta.CodeGen do
 
   defp validation_specs(module) do
     extracts = Extracts.local(module)
-    case Module.get_attribute(module, @gen_valid) do
+    case Module.get_attribute(module, @gen_validate) do
       nil -> []
       fun_name ->
         opts_specs = for x <- extracts do
@@ -116,7 +147,7 @@ defmodule Extract.Meta.CodeGen do
         [{Extract, :validate, fun_name, opts_specs}]
     end
     ++
-    case Module.get_attribute(module, @gen_valid!) do
+    case Module.get_attribute(module, @gen_validate!) do
       nil -> []
       fun_name ->
         opts_specs = for x <- extracts do

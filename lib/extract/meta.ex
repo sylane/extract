@@ -29,11 +29,8 @@ defmodule Extract.Meta do
 
 
   def allowed_options(ast, ctx, opts, allowed) do
-    case Options.validate(ctx, opts, allowed) do
-      :ok -> {ast, ctx}
-      {:error, {reason, message}} ->
-        Error.comptime(ctx, error(reason, message))
-    end
+    Options.validate!(ctx, opts, allowed)
+    {ast, ctx}
   end
 
 
@@ -253,7 +250,7 @@ defmodule Extract.Meta do
   end
 
 
-  def defined?(ast, ctx, opts, statments \\ nil) do
+  def is_defined?(ast, ctx, opts, statments \\ nil) do
     statments = statments || fn (_, ast, ctx) -> {ast, ctx} end
     undefined_value = Context.undefined_value(ctx)
     missing_value = Context.missing_value(ctx)

@@ -40,59 +40,75 @@ defmodule Extract.BasicTypes.AtomTest do
     end
   end
 
-  # test "undefined to atom" do
-  #   assert_distill_error {:undefined_value, :atom}, nil, :undefined, :atom
-  #   assert_distilled nil, nil, :undefined, :atom, optional: true
-  #   assert_distilled nil, nil, :undefined, :atom, allow_undefined: true
-  #   assert_distilled :foo, nil, :undefined, :atom, default: :foo
-  # end
+  test "undefined to atom" do
+    extracts = Extract.BasicTypes.extracts()
+    receipts = Extract.BasicTypes.receipts()
+    assert_distill_error {:undefined_value, :atom}, nil, :undefined, :atom
+    for x <- extracts, not x in [:undefined, :atom], {x, :atom} in receipts do
+      assert_distill_error {:undefined_value, ^x}, nil, x, :atom
+    end
+    for x <- extracts, x != :atom, {x, :atom} in receipts do
+      assert_distilled nil, nil, x, :atom, optional: true
+    end
+    for x <- extracts, x != :atom, {x, :atom} in receipts do
+      assert_distilled nil, nil, x, :atom, optional: true
+    end
+    for x <- extracts, x != :atom, {x, :atom} in receipts do
+      assert_distilled nil, nil, x, :atom, allow_undefined: true
+    end
+    for x <- extracts, x != :atom, {x, :atom} in receipts do
+      assert_distilled :foo, nil, x, :atom, default: :foo
+    end
+  end
 
-  # property "atom to atom" do
-  #   for_all x in atom do
-  #     implies x != nil do
-  #       assert_distilled ^x, x, :atom, :atom
-  #     end
-  #   end
-  # end
+  property "atom to atom" do
+    for_all x in atom do
+      implies x != nil do
+        assert_distilled ^x, x, :atom, :atom
+      end
+    end
+  end
 
-  # test "boolean to atom" do
-  #   assert_distilled true, true, :boolean, :atom
-  #   assert_distilled false, false, :boolean, :atom
-  # end
+  test "boolean to atom" do
+    assert_distilled true, true, :boolean, :atom
+    assert_distilled false, false, :boolean, :atom
+    for bad <- [:foo, 42, 3.14, "bad"] do
+      assert_distill_error {:bad_value, {:boolean, :bad_type}},
+                           bad, :boolean, :atom
+    end
+  end
 
-  # test "integer to atom" do
-  #   assert_distill_error {:bad_receipt, {:integer, :atom}}, 42, :integer, :atom
-  # end
+  test "integer to atom" do
+    assert_distill_error {:bad_receipt, {:integer, :atom}}, 42, :integer, :atom
+  end
 
-  # test "float to atom" do
-  #   assert_distill_error {:bad_receipt, {:float, :atom}}, 3.14, :float, :atom
-  # end
+  test "float to atom" do
+    assert_distill_error {:bad_receipt, {:float, :atom}}, 3.14, :float, :atom
+  end
 
-  # test "number to atom" do
-  #   assert_distill_error {:bad_receipt, {:number, :atom}}, 42, :number, :atom
-  #   assert_distill_error {:bad_receipt, {:number, :atom}}, 3.14, :number, :atom
-  # end
+  test "number to atom" do
+    assert_distill_error {:bad_receipt, {:number, :atom}}, 42, :number, :atom
+    assert_distill_error {:bad_receipt, {:number, :atom}}, 3.14, :number, :atom
+  end
 
-  # test "string to atom" do
-  #   assert_distilled :foo, "foo", :string, :atom
-  #   assert_distilled :">6ZX:7IYxhhG", ">6ZX:7IYxhhG", :string, :atom
-  #   assert_distill_error {:value_not_allowed, :atom},
-  #     "string that do not exists as an atom", :string, :atom
-  # end
+  test "string to atom" do
+    for {val, res} <- [{"foo", :foo}, {">6ZX:7IYxhhG", :">6ZX:7IYxhhG"}] do
+      assert_distilled ^res, val, :string, :atom
+    end
+    assert_distill_error {:value_not_allowed, :string},
+      "string that do not exists as an atom", :string, :atom
+    for bad <- [:foo, true, 42, 3.14] do
+      assert_distill_error {:bad_value, {:string, :bad_type}},
+                           bad, :string, :atom
+    end
+  end
 
-  # test "binary to atom" do
-  #   assert_distilled :foo, <<"foo">>, :binary, :atom
-  #   assert_distilled :">6ZX:7IYxhhG", <<">6ZX:7IYxhhG">>, :string, :atom
-  #   assert_distill_error {:value_not_allowed, :atom},
-  #     <<"binary that do not exists as an atom">>, :string, :atom
-  # end
-
-  # test "convert to allowed atom" do
-  #   assert_distilled :foo, "foo", :string, :atom, allowed: [:foo, :bar]
-  #   assert_distilled :bar, :bar, :atom, :atom, allowed: [:foo, :bar]
-  #   assert :buz == String.to_atom("buz") # so the atom exists in the atom table
-  #   assert_distill_error {:value_not_allowed, :atom},
-  #     "buz", :string, :atom, allowed: [:foo, :bar]
-  # end
+  test "convert to allowed atom" do
+    assert_distilled :foo, "foo", :string, :atom, allowed: [:foo, :bar]
+    assert_distilled :bar, :bar, :atom, :atom, allowed: [:foo, :bar]
+    assert :buz == String.to_atom("buz") # so the atom exists in the atom table
+    assert_distill_error {:value_not_allowed, :atom},
+      "buz", :string, :atom, allowed: [:foo, :bar]
+  end
 
 end
