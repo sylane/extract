@@ -44,20 +44,23 @@ defmodule Extract.BasicTypes.AtomTest do
     extracts = Extract.BasicTypes.extracts()
     receipts = Extract.BasicTypes.receipts()
     assert_distill_error {:undefined_value, :atom}, nil, :undefined, :atom
-    for x <- extracts, not x in [:undefined, :atom], {x, :atom} in receipts do
+    for x <- extracts, x != :undefined, {x, :atom} in receipts do
       assert_distill_error {:undefined_value, ^x}, nil, x, :atom
     end
-    for x <- extracts, x != :atom, {x, :atom} in receipts do
+    for x <- extracts, {x, :atom} in receipts do
       assert_distilled nil, nil, x, :atom, optional: true
     end
-    for x <- extracts, x != :atom, {x, :atom} in receipts do
-      assert_distilled nil, nil, x, :atom, optional: true
-    end
-    for x <- extracts, x != :atom, {x, :atom} in receipts do
+    for x <- extracts, {x, :atom} in receipts do
       assert_distilled nil, nil, x, :atom, allow_undefined: true
     end
-    for x <- extracts, x != :atom, {x, :atom} in receipts do
+    for x <- extracts, {x, :atom} in receipts do
       assert_distilled :foo, nil, x, :atom, default: :foo
+    end
+  end
+
+  test "bad atom receipts" do
+    for {f, v} <- [integer: 42, float: 3.14, number: 33, number: 3.33e33] do
+      assert_distill_error {:bad_receipt, {^f, :atom}}, v, f, :atom
     end
   end
 
@@ -76,19 +79,6 @@ defmodule Extract.BasicTypes.AtomTest do
       assert_distill_error {:bad_value, {:boolean, :bad_type}},
                            bad, :boolean, :atom
     end
-  end
-
-  test "integer to atom" do
-    assert_distill_error {:bad_receipt, {:integer, :atom}}, 42, :integer, :atom
-  end
-
-  test "float to atom" do
-    assert_distill_error {:bad_receipt, {:float, :atom}}, 3.14, :float, :atom
-  end
-
-  test "number to atom" do
-    assert_distill_error {:bad_receipt, {:number, :atom}}, 42, :number, :atom
-    assert_distill_error {:bad_receipt, {:number, :atom}}, 3.14, :number, :atom
   end
 
   test "string to atom" do

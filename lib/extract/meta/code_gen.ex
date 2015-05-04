@@ -95,10 +95,7 @@ defmodule Extract.Meta.CodeGen do
         match_statements = for {opts_ast, match_ast} <- opts_specs do
           call = Ast.call(macro_mod, macro_fun, [value_var, fmt, opts_ast])
           [statement] = quote do
-            #FIXME: Remove this useless encapsulation.
-            #       It is required to prevent error 'ambiguous_catch_try_state'
-            #       with Erlang versions < 18.
-            unquote(match_ast) -> fn -> unquote(call) end.()
+            unquote(match_ast) -> unquote(call)
           end
           statement
         end

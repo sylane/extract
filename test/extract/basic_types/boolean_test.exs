@@ -32,28 +32,62 @@ defmodule Extract.BasicTypes.BooleanTest do
     end
   end
 
-  # test "convert to boolean" do
-  #   assert_distill_error {:undefined_value, :boolean},
-  #     nil, :undefined, :boolean
-  #   assert_distilled nil, nil, :undefined, :boolean, optional: true
-  #   assert_distilled false, :false, :atom, :boolean
-  #   assert_distill_error {:distillation_error, {:atom, :boolean}},
-  #     :foo, :atom, :boolean
-  #   assert_distilled true, true, :boolean, :boolean
-  #   assert_distill_error {:bad_receipt, {:integer, :boolean}},
-  #     42, :integer, :boolean
-  #   assert_distill_error {:bad_receipt, {:float, :boolean}},
-  #     3.14, :float, :boolean
-  #   assert_distill_error {:bad_receipt, {:number, :boolean}},
-  #     42, :number, :boolean
-  #   assert_distill_error {:bad_receipt, {:number, :boolean}},
-  #     3.14, :number, :boolean
-  #   assert_distilled true, "true", :string, :boolean
-  #   assert_distill_error {:distillation_error, {:string, :boolean}},
-  #     "foo", :string, :boolean
-  #   assert_distilled false, <<"false">>, :binary, :boolean
-  #   assert_distill_error {:distillation_error, {:binary, :boolean}},
-  #     <<"bar">>, :binary, :boolean
-  # end
+  test "undefined to boolean" do
+    extracts = Extract.BasicTypes.extracts()
+    receipts = Extract.BasicTypes.receipts()
+    assert_distill_error {:undefined_value, :boolean},
+      nil, :undefined, :boolean
+    for x <- extracts, x != :undefined, {x, :boolean} in receipts do
+      assert_distill_error {:undefined_value, ^x}, nil, x, :boolean
+    end
+    for x <- extracts, {x, :boolean} in receipts do
+      assert_distilled nil, nil, x, :boolean, optional: true
+    end
+    for x <- extracts, {x, :boolean} in receipts do
+      assert_distilled nil, nil, x, :boolean, allow_undefined: true
+    end
+    for x <- extracts, {x, :boolean} in receipts do
+      assert_distilled true, nil, x, :boolean, default: true
+    end
+  end
+
+  test "good boolean distillation" do
+    for {f, v, x} <- [{:boolean, true, true},
+                      {:boolean, false, false},
+                      {:atom, true, true},
+                      {:atom, false, false},
+                      {:string, "true", true},
+                      {:string, "false", false}] do
+      assert_distilled ^x, v, f, :boolean
+    end
+  end
+
+  test "bad boolean distillation" do
+    for {f, v, x}
+      <- [{:atom, :foo, {:distillation_error, {:atom, :boolean}}},
+          {:integer, 42, {:bad_receipt, {:integer, :boolean}}},
+          {:float, 3.14, {:bad_receipt, {:float, :boolean}}},
+          {:number, 42, {:bad_receipt, {:number, :boolean}}},
+          {:number, 3.14, {:bad_receipt, {:number, :boolean}}},
+          {:string, "foo", {:distillation_error, {:string, :boolean}}},
+          {:binary, "foo", {:bad_receipt, {:binary, :boolean}}}] do
+      assert_distill_error ^x, v, f, :boolean
+    end
+  end
+
+  test "good allowed boolean distillation" do
+    for {f, v, x} <- [{:boolean, true, true},
+                      {:atom, true, true},
+                      {:string, "true", true}] do
+      assert_distilled ^x, v, f, :boolean, allowed: [true]
+    end
+  end
+
+  test "good but not allowed boolean distillation" do
+    for {f, v} <- [{:boolean, false}, {:atom, false}, {:string, "false"}] do
+      assert_distill_error {:value_not_allowed, :boolean},
+                           v, f, :boolean, allowed: [true]
+    end
+  end
 
 end

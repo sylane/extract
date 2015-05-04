@@ -214,6 +214,17 @@ defmodule Extract.BasicTypes do
   Receipts.register(:number, :integer, "number to integer",
                     __MODULE__, :distill_number_to_integer)
 
+
+  # receipt_statment :string, :integer, "string to integer" do
+  #   case Integer.parse(value) do
+  #     {value, ""} -> value
+  #     _ -> raise distillation_error(value)
+  #   end
+  # end
+
+  Receipts.register(:string, :integer, "string to integer",
+                    __MODULE__, :distill_string_to_integer)
+
   # receipt_statment :integer, :float, "integer to float" do
   #   value when is_integer(value) -> value / 1
   #   other -> raise distillation_error(other)
@@ -231,6 +242,15 @@ defmodule Extract.BasicTypes do
   Receipts.register(:number, :float, "number to float",
                     __MODULE__, :distill_number_to_float)
 
+  # receipt_statment :string, :float, "string to float" do
+  #   case Float.parse(value) do
+  #     {value, ""} -> value
+  #     _ -> raise distillation_error(value)
+  #   end
+  # end
+
+  Receipts.register(:string, :float, "string to float",
+                    __MODULE__, :distill_string_to_float)
 
   # receipt_statment [:integer, :float], :number, "#{from} to number"
 
@@ -239,6 +259,20 @@ defmodule Extract.BasicTypes do
 
   Receipts.register(:float, :number, "float to number",
                     __MODULE__, :distill_float_to_number)
+
+  # receipt_statment :string, :number, "string to number" do
+  #   case Integer.parse(value) do
+  #     {value, ""} -> value
+  #     _ ->
+  #       case Float.parse(value) do
+  #         {value, ""} -> value
+  #         _ -> raise distillation_error(value)
+  #       end
+  #   end
+  # end
+
+  Receipts.register(:string, :number, "string to number",
+                    __MODULE__, :distill_string_to_number)
 
   # receipt_statment [:atom, :boolean, :integer, :float, :number], :string,
   #                  "#{from} to string" do
@@ -437,6 +471,7 @@ defmodule Extract.BasicTypes do
 
     def validate_atom(ast, ctx, :atom, opts, body) do
       pipeline ast, ctx do
+        Meta.push_extract :atom, "atom"
         condition Meta.is_current_format? :atom do
           Meta.allowed_options opts, [:optional, :default, :allowed]
           Meta.assert_undefined_body body
@@ -444,7 +479,6 @@ defmodule Extract.BasicTypes do
             Meta.allowed_value opts
           end
         else
-          Meta.push_extract :atom, "atom"
           Meta.allowed_options opts, [:optional, :default, :allowed]
           Meta.assert_undefined_body body
           condition Meta.is_defined? opts do
@@ -495,6 +529,7 @@ defmodule Extract.BasicTypes do
 
     def validate_boolean(ast, ctx, :boolean, opts, body) do
       pipeline ast, ctx do
+        Meta.push_extract :boolean, "boolean"
         condition Meta.is_current_format? :boolean do
           Meta.allowed_options opts, [:optional, :default, :allowed]
           Meta.assert_undefined_body body
@@ -502,7 +537,6 @@ defmodule Extract.BasicTypes do
             Meta.allowed_value opts
           end
         else
-          Meta.push_extract :boolean, "boolean"
           Meta.allowed_options opts, [:optional, :default, :allowed]
           Meta.assert_undefined_body body
           condition Meta.is_defined? opts do
@@ -640,6 +674,7 @@ defmodule Extract.BasicTypes do
 
     def validate_string(ast, ctx, :string, opts, body) do
       pipeline ast, ctx do
+        Meta.push_extract :string, "string"
         condition Meta.is_current_format? :string do
           Meta.allowed_options opts, [:optional, :default, :allowed]
           Meta.assert_undefined_body body
@@ -647,7 +682,6 @@ defmodule Extract.BasicTypes do
             Meta.allowed_value opts
           end
         else
-          Meta.push_extract :string, "string"
           Meta.allowed_options opts, [:optional, :default, :allowed]
           Meta.assert_undefined_body body
           condition Meta.is_defined? opts do
@@ -705,6 +739,7 @@ defmodule Extract.BasicTypes do
 
     def validate_binary(ast, ctx, :binary, opts, body) do
       pipeline ast, ctx do
+        Meta.push_extract :binary, "binary"
         condition Meta.is_current_format? :binary do
           Meta.allowed_options opts, [:optional, :default, :allowed]
           Meta.assert_undefined_body body
@@ -712,7 +747,6 @@ defmodule Extract.BasicTypes do
             Meta.allowed_value opts
           end
         else
-          Meta.push_extract :binary, "binary"
           Meta.allowed_options opts, [:optional, :default, :allowed]
           Meta.assert_undefined_body body
           condition Meta.is_defined? opts do
@@ -869,7 +903,7 @@ defmodule Extract.BasicTypes do
      :atom, from_opts, from_body, :undefined, to_opts, to_body) do
       pipeline ast, ctx do
         Meta.push_receipt :atom, :undefined, "atom to undefined"
-        Extract._validate! :atom, from_opts, from_body
+        Extract._validate! :atom, [{:optional, true} | from_opts], from_body
         Extract._validate! :undefined, to_opts, to_body
       end
     end
@@ -879,7 +913,7 @@ defmodule Extract.BasicTypes do
      :boolean, from_opts, from_body, :undefined, to_opts, to_body) do
       pipeline ast, ctx do
         Meta.push_receipt :boolean, :undefined, "boolean to undefined"
-        Extract._validate! :boolean, from_opts, from_body
+        Extract._validate! :boolean, [{:optional, true} | from_opts], from_body
         Extract._validate! :undefined, to_opts, to_body
       end
     end
@@ -889,7 +923,7 @@ defmodule Extract.BasicTypes do
      :integer, from_opts, from_body, :undefined, to_opts, to_body) do
       pipeline ast, ctx do
         Meta.push_receipt :integer, :undefined, "integer to undefined"
-        Extract._validate! :integer, from_opts, from_body
+        Extract._validate! :integer, [{:optional, true} | from_opts], from_body
         Extract._validate! :undefined, to_opts, to_body
       end
     end
@@ -899,7 +933,7 @@ defmodule Extract.BasicTypes do
      :float, from_opts, from_body, :undefined, to_opts, to_body) do
       pipeline ast, ctx do
         Meta.push_receipt :float, :undefined, "float to undefined"
-        Extract._validate! :float, from_opts, from_body
+        Extract._validate! :float, [{:optional, true} | from_opts], from_body
         Extract._validate! :undefined, to_opts, to_body
       end
     end
@@ -909,7 +943,7 @@ defmodule Extract.BasicTypes do
      :number, from_opts, from_body, :undefined, to_opts, to_body) do
       pipeline ast, ctx do
         Meta.push_receipt :number, :undefined, "number to undefined"
-        Extract._validate! :number, from_opts, from_body
+        Extract._validate! :number, [{:optional, true} | from_opts], from_body
         Extract._validate! :undefined, to_opts, to_body
       end
     end
@@ -919,7 +953,7 @@ defmodule Extract.BasicTypes do
      :string, from_opts, from_body, :undefined, to_opts, to_body) do
       pipeline ast, ctx do
         Meta.push_receipt :string, :undefined, "string to undefined"
-        Extract._validate! :string, from_opts, from_body
+        Extract._validate! :string, [{:optional, true} | from_opts], from_body
         Extract._validate! :undefined, to_opts, to_body
       end
     end
@@ -929,7 +963,7 @@ defmodule Extract.BasicTypes do
      :binary, from_opts, from_body, :undefined, to_opts, to_body) do
       pipeline ast, ctx do
         Meta.push_receipt :binary, :undefined, "binary to undefined"
-        Extract._validate! :binary, from_opts, from_body
+        Extract._validate! :binary, [{:optional, true} | from_opts], from_body
         Extract._validate! :undefined, to_opts, to_body
       end
     end
@@ -1027,6 +1061,7 @@ defmodule Extract.BasicTypes do
              distill_string_to_atom_runtime
           end
         end
+        Meta.set_format(:atom)
         Extract._validate! :atom, to_opts, to_body
       end
     end
@@ -1060,7 +1095,7 @@ defmodule Extract.BasicTypes do
      :atom, from_opts, from_body, :boolean, to_opts, to_body) do
       pipeline ast, ctx do
         Meta.push_receipt :atom, :boolean, "atom to boolean"
-        Extract._validate! :boolean, from_opts, from_body
+        Extract._validate! :atom, from_opts, from_body
         condition Meta.is_defined? from_opts do
           condition Meta.is_comptime? nil do
              distill_atom_to_boolean_comptime
@@ -1068,6 +1103,7 @@ defmodule Extract.BasicTypes do
              distill_atom_to_boolean_runtime
           end
         end
+        Meta.set_format(:boolean)
         Extract._validate! :boolean, to_opts, to_body
       end
     end
@@ -1108,6 +1144,7 @@ defmodule Extract.BasicTypes do
              distill_string_to_boolean_runtime
           end
         end
+        Meta.set_format(:boolean)
         Extract._validate! :boolean, to_opts, to_body
       end
     end
@@ -1148,6 +1185,7 @@ defmodule Extract.BasicTypes do
              distill_float_to_integer_runtime
           end
         end
+        Meta.set_format(:integer)
         Extract._validate! :integer, to_opts, to_body
       end
     end
@@ -1186,6 +1224,7 @@ defmodule Extract.BasicTypes do
              distill_number_to_integer_runtime
           end
         end
+        Meta.set_format(:integer)
         Extract._validate! :integer, to_opts, to_body
       end
     end
@@ -1214,6 +1253,46 @@ defmodule Extract.BasicTypes do
     end
 
 
+    def distill_string_to_integer(ast, ctx,
+     :string, from_opts, from_body, :integer, to_opts, to_body) do
+      pipeline ast, ctx do
+        Meta.push_receipt :string, :integer, "string to integer"
+        Extract._validate! :string, from_opts, from_body
+        condition Meta.is_defined? from_opts do
+          condition Meta.is_comptime? nil do
+             distill_string_to_integer_comptime
+           else
+             distill_string_to_integer_runtime
+          end
+        end
+        Meta.set_format(:integer)
+        Extract._validate! :integer, to_opts, to_body
+      end
+    end
+
+
+    defp distill_string_to_integer_comptime(ast, ctx) do
+      new_ast = case Integer.parse(ast) do
+        {value, ""} -> value
+        _ -> Error.comptime(ctx, distillation_error(ast))
+      end
+      {new_ast, ctx}
+    end
+
+
+    defp distill_string_to_integer_runtime(ast, ctx) do
+      {error_ast, [error_var]} = Error.runtime(ctx, distillation_error/1)
+      new_ast = quote do
+        unquote(error_var) = unquote(ast)
+        case Integer.parse(unquote(error_var)) do
+          {value, ""} -> value
+          _ -> unquote(error_ast)
+        end
+      end
+      {new_ast, Context.may_raise(ctx)}
+    end
+
+
     def distill_integer_to_float(ast, ctx,
      :integer, from_opts, from_body, :float, to_opts, to_body) do
       pipeline ast, ctx do
@@ -1226,6 +1305,7 @@ defmodule Extract.BasicTypes do
              distill_integer_to_float_runtime
           end
         end
+        Meta.set_format(:float)
         Extract._validate! :float, to_opts, to_body
       end
     end
@@ -1264,6 +1344,7 @@ defmodule Extract.BasicTypes do
              distill_number_to_float_runtime
           end
         end
+        Meta.set_format(:float)
         Extract._validate! :float, to_opts, to_body
       end
     end
@@ -1292,6 +1373,46 @@ defmodule Extract.BasicTypes do
     end
 
 
+    def distill_string_to_float(ast, ctx,
+     :string, from_opts, from_body, :float, to_opts, to_body) do
+      pipeline ast, ctx do
+        Meta.push_receipt :string, :float, "string to float"
+        Extract._validate! :string, from_opts, from_body
+        condition Meta.is_defined? from_opts do
+          condition Meta.is_comptime? nil do
+             distill_string_to_float_comptime
+           else
+             distill_string_to_float_runtime
+          end
+        end
+        Meta.set_format(:float)
+        Extract._validate! :float, to_opts, to_body
+      end
+    end
+
+
+    defp distill_string_to_float_comptime(ast, ctx) do
+      new_ast = case Float.parse(ast) do
+        {value, ""} -> value
+        _ -> Error.comptime(ctx, distillation_error(ast))
+      end
+      {new_ast, ctx}
+    end
+
+
+    defp distill_string_to_float_runtime(ast, ctx) do
+      {error_ast, [error_var]} = Error.runtime(ctx, distillation_error/1)
+      new_ast = quote do
+        unquote(error_var) = unquote(ast)
+        case Float.parse(unquote(error_var)) do
+          {value, ""} -> value
+          _ -> unquote(error_ast)
+        end
+      end
+      {new_ast, Context.may_raise(ctx)}
+    end
+
+
     def distill_integer_to_number(ast, ctx,
      :integer, from_opts, from_body, :number, to_opts, to_body) do
       pipeline ast, ctx do
@@ -1312,6 +1433,54 @@ defmodule Extract.BasicTypes do
     end
 
 
+    def distill_string_to_number(ast, ctx,
+     :string, from_opts, from_body, :number, to_opts, to_body) do
+      pipeline ast, ctx do
+        Meta.push_receipt :string, :number, "string to number"
+        Extract._validate! :string, from_opts, from_body
+        condition Meta.is_defined? from_opts do
+          condition Meta.is_comptime? nil do
+             distill_string_to_number_comptime
+           else
+             distill_string_to_number_runtime
+          end
+        end
+        Meta.set_format(:number)
+        Extract._validate! :number, to_opts, to_body
+      end
+    end
+
+
+    defp distill_string_to_number_comptime(ast, ctx) do
+      new_ast = case Integer.parse(ast) do
+        {value, ""} -> value
+        _ ->
+          case Float.parse(ast) do
+            {value, ""} -> value
+            _ -> Error.comptime(ctx, distillation_error(ast))
+          end
+      end
+      {new_ast, ctx}
+    end
+
+
+    defp distill_string_to_number_runtime(ast, ctx) do
+      {error_ast, [error_var]} = Error.runtime(ctx, distillation_error/1)
+      new_ast = quote do
+        unquote(error_var) = unquote(ast)
+        case Integer.parse(unquote(error_var)) do
+          {value, ""} -> value
+          _ ->
+            case Float.parse(unquote(error_var)) do
+              {value, ""} -> value
+              _ -> unquote(error_ast)
+            end
+        end
+      end
+      {new_ast, Context.may_raise(ctx)}
+    end
+
+
     def distill_atom_to_string(ast, ctx,
      :atom, from_opts, from_body, :string, to_opts, to_body) do
       pipeline ast, ctx do
@@ -1324,6 +1493,7 @@ defmodule Extract.BasicTypes do
              distill_atombooleanfloatintegernumber_to_string_runtime
           end
         end
+        Meta.set_format(:string)
         Extract._validate! :string, to_opts, to_body
       end
     end
@@ -1341,6 +1511,7 @@ defmodule Extract.BasicTypes do
              distill_atombooleanfloatintegernumber_to_string_runtime
           end
         end
+        Meta.set_format(:string)
         Extract._validate! :string, to_opts, to_body
       end
     end
@@ -1358,6 +1529,7 @@ defmodule Extract.BasicTypes do
              distill_atombooleanfloatintegernumber_to_string_runtime
           end
         end
+        Meta.set_format(:string)
         Extract._validate! :string, to_opts, to_body
       end
     end
@@ -1375,6 +1547,7 @@ defmodule Extract.BasicTypes do
              distill_atombooleanfloatintegernumber_to_string_runtime
           end
         end
+        Meta.set_format(:string)
         Extract._validate! :string, to_opts, to_body
       end
     end
@@ -1392,6 +1565,7 @@ defmodule Extract.BasicTypes do
              distill_atombooleanfloatintegernumber_to_string_runtime
           end
         end
+        Meta.set_format(:string)
         Extract._validate! :string, to_opts, to_body
       end
     end

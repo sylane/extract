@@ -395,6 +395,7 @@ defmodule TestCompiler do
         end
         # Extract.Meta.Debug.ast(body_ast, info: "dynamic module")
         Code.compiler_options(ignore_module_conflict: true)
+        Code.compiler_options(warnings_as_errors: true)
         Module.create(test_mod, body_ast, Macro.Env.location(__ENV__))
       end
       try do

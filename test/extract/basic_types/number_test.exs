@@ -2,6 +2,8 @@ defmodule Extract.BasicTypes.NumberTest do
 
   use TestHelper
 
+  @tag timeout: 60000
+
 
   test "undefined number" do
     assert_invalid {:undefined_value, :number}, nil, :number
@@ -62,7 +64,6 @@ defmodule Extract.BasicTypes.NumberTest do
     end
   end
 
-  @tag timeout: 60000
   property "invalid number" do
     for_all x in simpler_any do
       implies not is_number(x) and x != nil do
@@ -97,98 +98,91 @@ defmodule Extract.BasicTypes.NumberTest do
     end
   end
 
-  # test "undefined to number" do
-  #   assert_distill_error {:undefined_value, :number}, nil, :undefined, :number
-  #   assert_distilled nil, nil, :undefined, :number, optional: true
-  #   assert_distilled nil, nil, :undefined, :number, allow_undefined: true
-  #   assert_distilled 42, nil, :undefined, :number, default: 42
-  # end
+  test "undefined to number" do
+    extracts = Extract.BasicTypes.extracts()
+    receipts = Extract.BasicTypes.receipts()
+    assert_distill_error {:undefined_value, :number}, nil, :undefined, :number
+    for x <- extracts, x != :undefined, {x, :number} in receipts do
+      assert_distill_error {:undefined_value, ^x}, nil, x, :number
+    end
+    for x <- extracts, {x, :number} in receipts do
+      assert_distilled nil, nil, x, :number, optional: true
+    end
+    for x <- extracts, {x, :number} in receipts do
+      assert_distilled nil, nil, x, :number, allow_undefined: true
+    end
+    for x <- extracts, {x, :number} in receipts do
+      assert_distilled 42, nil, x, :number, default: 42
+    end
+  end
 
-  # test "atom to number" do
-  #   assert_distill_error {:bad_receipt, {:atom, :number}},
-  #     :"3.14", :atom, :number
-  # end
+  test "bad number receipts" do
+    for {f, v} <- [atom: :foo, boolean: true, binary: "3.14"] do
+      assert_distill_error {:bad_receipt, {^f, :number}}, v, f, :number
+    end
+  end
 
-  # test "boolean to number" do
-  #   assert_distill_error {:bad_receipt, {:boolean, :number}},
-  #     false, :boolean, :number
-  # end
+  property "integer to number" do
+    for_all x in int do
+      assert_distilled ^x, x, :integer, :number
+    end
+  end
 
-  # @tag timeout: 60000
-  # property "integer to number" do
-  #   for_all x in int do
-  #     assert_distilled ^x, x, :integer, :number
-  #   end
-  # end
+  property "number to number" do
+    for_all x in number do
+      assert_distilled ^x, x, :number, :number
+    end
+  end
 
-  # @tag timeout: 60000
-  # test "number to number" do
-  #   for_all x in number do
-  #     assert_distilled ^x, x, :number, :number
-  #   end
-  # end
+  property "float to number" do
+    for_all x in real do
+      assert_distilled ^x, x, :number, :number
+    end
+  end
 
-  # @tag timeout: 60000
-  # property "float to number" do
-  #   for_all x in real do
-  #     assert_distilled ^x, x, :number, :number
-  #   end
-  # end
+  property "good string to number" do
+    for_all x in number do
+      expected = to_number(to_string(x))
+      assert_distilled ^expected, to_string(x), :string, :number
+    end
+  end
 
-  # @tag timeout: 60000
-  # property "good string to number" do
-  #   for_all x in number do
-  #     assert_distilled ^x, to_string(x), :string, :number
-  #   end
-  # end
+  property "bad string to number" do
+    for_all x in unicode_binary do
+      implies String.valid?(x) and not is_string_number(x) do
+        assert_distill_error {:distillation_error, {:string, :number}},
+          x, :string, :number
+      end
+    end
+  end
 
-  # @tag timeout: 60000
-  # property "bad string to number" do
-  #   for_all x in unicode_binary do
-  #     implies not is_string_number(x) do
-  #       assert_distill_error {:distillation_error, {:string, :number}},
-  #         x, :string, :number
-  #     end
-  #   end
-  # end
-
-  # @tag timeout: 60000
-  # property "good binary to number" do
-  #   for_all x in number do
-  #     assert_distilled ^x, to_string(x), :binary, :number
-  #   end
-  # end
-
-  # @tag timeout: 60000
-  # property "bad binary to number" do
-  #   for_all x in binary do
-  #     implies not is_string_number(x) do
-  #       assert_distill_error {:distillation_error, {:binary, :number}},
-  #         x, :binary, :number
-  #     end
-  #   end
-  # end
-
-  # test "convert to allowed number" do
-  #   assert_distilled 3.14, "3.14", :string, :number, allowed: [3.14, 42]
-  #   assert_distilled 42, "42", :string, :number, allowed: [3.14, 42]
-  #   assert_distill_error {:value_not_allowed, :number},
-  #     2, :integer, :number, allowed: [3.14, 42]
-  # end
+  test "convert to allowed number" do
+    assert_distilled 3.14, "3.14", :string, :number, allowed: [3.14, 42]
+    assert_distilled 42, "42", :string, :number, allowed: [3.14, 42]
+    assert_distill_error {:value_not_allowed, :number},
+      2, :integer, :number, allowed: [3.14, 42]
+  end
 
 
-  # defp is_string_number(str) do
-  #   try do
-  #     is_float(String.to_float(str))
-  #   rescue
-  #     ArgumentError ->
-  #       try do
-  #         is_integer(String.to_integer(str))
-  #       rescue
-  #         ArgumentError ->
-  #           false
-  #       end
-  #   end
-  # end
+  defp is_string_number(str) do
+    case Integer.parse(str) do
+      {_, ""} -> true
+      _ ->
+        case Float.parse(str) do
+          {_, ""} -> true
+          _ -> false
+        end
+    end
+  end
+
+  defp to_number(str) do
+    case Integer.parse(str) do
+      {f, ""} -> f
+      _ ->
+        case Float.parse(str) do
+          {i, ""} -> i
+        end
+    end
+  end
 
 end

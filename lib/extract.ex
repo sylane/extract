@@ -35,6 +35,11 @@ defmodule Extract do
       Meta.comptime_rescue!
     end
     # Extract.Meta.Debug.ast(_ast, env: __ENV__, caller: __CALLER__)
+
+    #FIXME: Remove this useless encapsulation.
+    # It is required to prevent error 'ambiguous_catch_try_state'
+    # with Erlang versions < 18.
+    quote do: fn -> unquote(_ast) end.()
   end
 
 
@@ -48,6 +53,11 @@ defmodule Extract do
       Meta.comptime_rescue
     end
     # Extract.Meta.Debug.ast(_ast, env: __ENV__, caller: __CALLER__)
+
+    #FIXME: Remove this useless encapsulation.
+    # It is required to prevent error 'ambiguous_catch_try_state'
+    # with Erlang versions < 18.
+    quote do: fn -> unquote(_ast) end.()
   end
 
 
@@ -72,6 +82,11 @@ defmacro distill!(value, from, to, opts \\ [], body \\ []) do
       Meta.comptime_rescue!
     end
     # Extract.Meta.Debug.ast(_ast, env: __ENV__, caller: __CALLER__)
+
+    #FIXME: Remove this useless encapsulation.
+    # It is required to prevent error 'ambiguous_catch_try_state'
+    # with Erlang versions < 18.
+    quote do: fn -> unquote(_ast) end.()
   end
 
 
@@ -86,6 +101,11 @@ defmacro distill!(value, from, to, opts \\ [], body \\ []) do
       Meta.comptime_rescue
     end
     # Extract.Meta.Debug.ast(_ast, env: __ENV__, caller: __CALLER__)
+
+    #FIXME: Remove this useless encapsulation.
+    # It is required to prevent error 'ambiguous_catch_try_state'
+    # with Erlang versions < 18.
+    quote do: fn -> unquote(_ast) end.()
   end
 
 

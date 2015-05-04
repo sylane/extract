@@ -2,6 +2,8 @@ defmodule Extract.BasicTypes.StringTest do
 
   use TestHelper
 
+  @tag timeout: 60000
+
 
   test "undefined string" do
     assert_invalid {:undefined_value, :string}, nil, :string
@@ -68,7 +70,6 @@ defmodule Extract.BasicTypes.StringTest do
     end
   end
 
-  @tag timeout: 60000
   property "invalid string" do
     for_all x in simpler_any do
       implies not is_binary(x) and x != nil do
@@ -77,58 +78,69 @@ defmodule Extract.BasicTypes.StringTest do
     end
   end
 
-  # test "undefined to string" do
-  #   assert_distill_error {:undefined_value, :string}, nil, :undefined, :string
-  #   assert_distilled nil, nil, :undefined, :string, optional: true
-  #   assert_distilled nil, nil, :undefined, :string, allow_undefined: true
-  #   assert_distilled :foo, nil, :undefined, :string, default: :foo
-  # end
+  test "undefined to string" do
+    extracts = Extract.BasicTypes.extracts()
+    receipts = Extract.BasicTypes.receipts()
+    assert_distill_error {:undefined_value, :string}, nil, :undefined, :string
+    for x <- extracts, x != :undefined, {x, :string} in receipts do
+      assert_distill_error {:undefined_value, ^x}, nil, x, :string
+    end
+    for x <- extracts, {x, :string} in receipts do
+      assert_distilled nil, nil, x, :string, optional: true
+    end
+    for x <- extracts, {x, :string} in receipts do
+      assert_distilled nil, nil, x, :string, allow_undefined: true
+    end
+    for x <- extracts, {x, :string} in receipts do
+      assert_distilled 42, nil, x, :string, default: 42
+    end
+  end
 
-  # property "atom to string" do
-  #   for_all x in atom do
-  #     implies x != nil do
-  #       s = Atom.to_string(x)
-  #       assert_distilled ^s, x, :atom, :string
-  #     end
-  #   end
-  # end
+  property "atom to string" do
+    for_all x in atom do
+      implies x != nil do
+        s = Atom.to_string(x)
+        assert_distilled ^s, x, :atom, :string
+      end
+    end
+  end
 
-  # test "boolean to string" do
-  #   assert_distilled "true", true, :boolean, :string
-  #   assert_distilled "false", false, :boolean, :string
-  # end
+  test "boolean to string" do
+    assert_distilled "true", true, :boolean, :string
+    assert_distilled "false", false, :boolean, :string
+  end
 
-  # property "integer to string" do
-  #   for_all x in int do
-  #     s = to_string(x)
-  #     assert_distilled ^s, x, :integer, :string
-  #   end
-  # end
+  property "integer to string" do
+    for_all x in int do
+      s = to_string(x)
+      assert_distilled ^s, x, :integer, :string
+    end
+  end
 
-  # property "float to string" do
-  #   for_all x in real do
-  #     s = to_string(x)
-  #     assert_distilled ^s, x, :float, :string
-  #   end
-  # end
+  property "float to string" do
+    for_all x in real do
+      s = to_string(x)
+      assert_distilled ^s, x, :float, :string
+    end
+  end
 
-  # property "number to string" do
-  #   for_all x in number do
-  #     s = to_string(x)
-  #     assert_distilled ^s, x, :number, :string
-  #   end
-  # end
+  property "number to string" do
+    for_all x in number do
+      s = to_string(x)
+      assert_distilled ^s, x, :number, :string
+    end
+  end
 
-  # test "binary/string to string" do
-  #   assert_distilled "foo", "foo", :string, :string
-  #   assert_distilled "foo", "foo", :binary, :string
-  # end
+  test "binary/string to string" do
+    assert_distilled "foo", "foo", :string, :string
+    assert_distilled "foo", "foo", :binary, :string
+  end
 
-  # test "convert to allowed string" do
-  #   assert_distilled "42", 42, :integer, :string, allowed: ["42", "3.14"]
-  #   assert_distilled "3.14", 3.14, :float, :string, allowed: ["42", "3.14"]
-  #   assert_distill_error {:value_not_allowed, :string},
-  #     33, :integer, :string, allowed: ["42", "3.14"]
-  # end
+  test "convert to allowed string" do
+    assert_distilled "42", 42, :integer, :string, allowed: ["42", "3.14"]
+    assert_distilled "3.14", 3.14, :float, :string, allowed: ["42", "3.14"]
+    assert_distill_error {:value_not_allowed, :string},
+      33, :integer, :string, allowed: ["42", "3.14"]
+  end
 
 end
