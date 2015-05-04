@@ -14,6 +14,8 @@ defmodule Extract.BasicTypes do
   @generate_receipt_list :receipts
   @generate_validation :validate
   @generate_validation! :validate!
+  @generate_distillation :distill
+  @generate_distillation! :distill!
 
   # The registrations are supposed to be generated
 

@@ -11,6 +11,8 @@ defmodule Extract.Meta.CodeGen do
   @gen_receipts  :generate_receipt_list
   @gen_validate  :generate_validation
   @gen_validate! :generate_validation!
+  @gen_distill  :generate_distillation
+  @gen_distill! :generate_distillation!
 
 
   defmacro module_requirements(_mode) do
@@ -89,9 +91,8 @@ defmodule Extract.Meta.CodeGen do
     module = Mode.module(__CALLER__, :defining)
     specs = validation_specs(module)
     value_var = Macro.var(:value, __MODULE__)
-    _ast = for {macro_mod, macro_fun, gen_fun, fun_specs} <- specs do
+    _ast = for {macro_mod, macro_fun, raise?, gen_fun, fun_specs} <- specs do
       fun_statements = for {fmt, allowed, opts_specs} <- fun_specs do
-      # fun_statements = for {fmt, allowed, opts_specs} <- [hd(fun_specs)] do
         match_statements = for {opts_ast, match_ast} <- opts_specs do
           call = Ast.call(macro_mod, macro_fun, [value_var, fmt, opts_ast])
           [statement] = quote do
@@ -120,11 +121,67 @@ defmodule Extract.Meta.CodeGen do
           end
         end
       end
+      error_ast = case raise? do
+        true -> quote do: Extract.Meta.Error.runtime_bad_format(format)
+        false -> quote do: {:error, {:bad_format, format}}
+      end
       quote do
         def unquote(gen_fun)(value, format, opts \\ [])
         unquote_splicing(fun_statements)
         def unquote(gen_fun)(_value, format, _opts) do
-          Extract.Meta.Error.runtime_bad_format(format)
+          unquote(error_ast)
+        end
+      end
+    end
+    # Extract.Meta.Debug.ast(_ast, env: __ENV__, caller: __CALLER__)
+  end
+
+
+  defmacro distillation_functions() do
+    module = Mode.module(__CALLER__, :defining)
+    specs = distillation_specs(module)
+    value_var = Macro.var(:value, __MODULE__)
+    _ast = for {macro_mod, macro_fun, raise?, gen_fun, fun_specs} <- specs do
+      fun_statements = for {from, to, allowed, opts_specs} <- fun_specs do
+        match_statements = for {opts_ast, match_ast} <- opts_specs do
+          call = Ast.call(macro_mod, macro_fun, [value_var, from, to, opts_ast])
+          [statement] = quote do
+            unquote(match_ast) -> unquote(call)
+          end
+          statement
+        end
+        opts_statment = for o <- allowed do
+          quote do: Keyword.fetch(opts, unquote(o))
+        end
+        if opts_statment == [] do
+          call = Ast.call(macro_mod, macro_fun, [value_var, from, to, []])
+          quote do
+            def unquote(gen_fun)(unquote(value_var), unquote(from),
+                                 unquote(to), _opts) do
+              unquote(call)
+            end
+          end
+        else
+          quote do
+            def unquote(gen_fun)(unquote(value_var), unquote(from),
+                                 unquote(to), opts) do
+              opts = unquote(opts_statment)
+              case opts do
+                unquote(match_statements)
+              end
+            end
+          end
+        end
+      end
+      error_ast = case raise? do
+        true -> quote do: Extract.Meta.Error.runtime_bad_receipt(from, to)
+        false -> quote do: {:error, {:bad_receipt, {from, to}}}
+      end
+      quote do
+        def unquote(gen_fun)(value, from, to, opts \\ [])
+        unquote_splicing(fun_statements)
+        def unquote(gen_fun)(_value, from, to, _opts) do
+          unquote(error_ast)
         end
       end
     end
@@ -133,25 +190,42 @@ defmodule Extract.Meta.CodeGen do
 
 
   defp validation_specs(module) do
+    validation_specs(module, @gen_validate, :validate, false)
+    ++ validation_specs(module, @gen_validate!, :validate!, true)
+  end
+
+
+  defp validation_specs(module, attr_name, macro_name, raise?) do
     extracts = Extracts.local(module)
-    case Module.get_attribute(module, @gen_validate) do
+    case Module.get_attribute(module, attr_name) do
       nil -> []
       fun_name ->
         opts_specs = for x <- extracts do
           opts = Enum.sort(x.opts)
           {x.name, opts, opts_specs(opts)}
         end
-        [{Extract, :validate, fun_name, opts_specs}]
+        [{Extract, macro_name, raise?, fun_name, opts_specs}]
     end
-    ++
-    case Module.get_attribute(module, @gen_validate!) do
+  end
+
+
+  defp distillation_specs(module) do
+    distillation_specs(module, @gen_distill, :distill, false)
+    ++ distillation_specs(module, @gen_distill!, :distill!, true)
+  end
+
+
+  defp distillation_specs(module, attr_name, macro_name, raise?) do
+    receipts = Receipts.local(module)
+    case Module.get_attribute(module, attr_name) do
       nil -> []
       fun_name ->
-        opts_specs = for x <- extracts do
+        opts_specs = for r <- receipts do
+          {:ok, x} = Extracts.fetch(module, r.to)
           opts = Enum.sort(x.opts)
-          {x.name, opts, opts_specs(opts)}
+          {r.from, r.to, opts, opts_specs(opts)}
         end
-        [{Extract, :validate!, fun_name, opts_specs}]
+        [{Extract, macro_name, raise?, fun_name, opts_specs}]
     end
   end
 

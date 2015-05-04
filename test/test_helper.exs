@@ -122,6 +122,16 @@ defmodule TestHelper do
         from = unquote(from)
         to = unquote(to)
         opts = unquote(opts)
+
+        allow_missing = Keyword.has_key?(opts, :allow_missing)
+        allow_undefined = Keyword.has_key?(opts, :allow_undefined)
+        only_macro = allow_missing or allow_undefined
+
+        if not only_macro do
+          assert {:ok, unquote(exp)} = Extract.BasicTypes.distill(val, from, to, opts)
+          assert unquote(exp) = Extract.BasicTypes.distill!(val, from, to, opts)
+        end
+
         expect_result({:ok, unquote(exp)}, [Extract.BasicTypes],
           Extract.distill(static: val, static: from, static: to, static_kw: opts))
         # expect_result({:ok, unquote(exp)}, [Extract.BasicTypes],
@@ -154,6 +164,7 @@ defmodule TestHelper do
         #   Extract.distill!(dynamic: val, static: from, dynamic: to, static_kw: opts))
         expect_result(unquote(exp), [Extract.BasicTypes],
           Extract.distill!(dynamic: val, dynamic: from, dynamic: to, static_kw: opts))
+
         true
       end.()
     end
@@ -170,6 +181,19 @@ defmodule TestHelper do
         from = unquote(from)
         to = unquote(to)
         opts = unquote(opts)
+
+        allow_missing = Keyword.has_key?(opts, :allow_missing)
+        allow_undefined = Keyword.has_key?(opts, :allow_undefined)
+        only_macro = allow_missing or allow_undefined
+
+        if not only_macro do
+          assert {:error, unquote(exp)} = Extract.BasicTypes.distill(val, from, to, opts)
+          e = assert_raise Extract.Error, fn ->
+            Extract.BasicTypes.distill!(val, from, to, opts)
+          end
+          assert unquote(exp) = e.reason
+        end
+
         expect_result({:error, unquote(exp)}, [Extract.BasicTypes],
           Extract.distill(static: val, static: from, static: to, static_kw: opts))
         # expect_result({:error, unquote(exp)}, [Extract.BasicTypes],
@@ -202,6 +226,7 @@ defmodule TestHelper do
         #   Extract.distill!(dynamic: val, static: from, dynamic: to, static_kw: opts))
         expect_raise(unquote(exp), [Extract.BasicTypes],
           Extract.distill!(dynamic: val, dynamic: from, dynamic: to, static_kw: opts))
+
         true
       end.()
     end

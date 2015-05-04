@@ -62,6 +62,8 @@ defmodule Extract.Meta.Options do
       {:ok, value} ->
         case resolve(ctx_or_env, value, :optional) do
           true -> take_options(ctx_or_env, kv, opts, [{:optional, true} | acc])
+          {_, _, _} = var ->
+            take_options(ctx_or_env, kv, opts, [{:optional, var} | acc])
           false ->
             case Keyword.fetch(kv, :default) do
               :error ->

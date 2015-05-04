@@ -2,6 +2,8 @@ defmodule Extract.BasicTypes.BinaryTest do
 
   use TestHelper
 
+  @tag timeout: 60000
+
 
   test "undefined binary" do
     assert_invalid {:undefined_value, :binary}, nil, :binary
@@ -25,7 +27,6 @@ defmodule Extract.BasicTypes.BinaryTest do
     end
   end
 
-  @tag timeout: 60000
   property "invalid binary" do
     for_all x in simpler_any do
       implies not is_binary(x) and x != nil do
@@ -61,7 +62,9 @@ defmodule Extract.BasicTypes.BinaryTest do
 
   property "string to binary" do
     for_all x in unicode_binary do
-      assert_distilled ^x, x, :string, :binary
+      implies String.valid?(x) do
+        assert_distilled ^x, x, :string, :binary
+      end
     end
   end
 

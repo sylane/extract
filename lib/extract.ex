@@ -21,6 +21,7 @@ defmodule Extract do
   alias Extract.Meta.Options
   alias Extract.Meta.Extracts
   alias Extract.Meta.Receipts
+  alias Extract.Meta.CodeGen
   alias Extract.Meta.Mode
   alias Extract.Meta.Error
 
@@ -133,9 +134,10 @@ defmacro distill!(value, from, to, opts \\ [], body \\ []) do
   defmacro __before_compile__(_env) do
     _ast = quote do
       require Extract.Meta.CodeGen
-      Extract.Meta.CodeGen.using_macro()
-      Extract.Meta.CodeGen.list_functions()
-      Extract.Meta.CodeGen.validation_functions()
+      CodeGen.using_macro()
+      CodeGen.list_functions()
+      CodeGen.validation_functions()
+      CodeGen.distillation_functions()
     end
     # Extract.Meta.Debug.ast(_ast, env: __ENV__, caller: __CALLER__)
   end
